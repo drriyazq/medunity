@@ -1,0 +1,19 @@
+[Unit]
+Description=MedUnity Celery worker
+After=network.target redis.service
+
+[Service]
+User=drriyazq
+WorkingDirectory=/home/drriyazq/medunity/backend
+Environment="DJANGO_SETTINGS_MODULE=medunity.settings.prod"
+EnvironmentFile=/home/drriyazq/medunity/backend/.env
+ExecStart=/home/drriyazq/medunity/backend/venv/bin/celery \
+    -A medunity.celery_app:celery_app \
+    worker \
+    --loglevel=info \
+    --concurrency=2
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+[Unit]
+Description=MedUnity Django backend (Gunicorn)
+After=network.target
+
+[Service]
+User=drriyazq
+WorkingDirectory=/home/drriyazq/medunity/backend
+Environment="DJANGO_SETTINGS_MODULE=medunity.settings.prod"
+EnvironmentFile=/home/drriyazq/medunity/backend/.env
+ExecStart=/home/drriyazq/medunity/backend/venv/bin/gunicorn \
+    --config /home/drriyazq/medunity/backend/gunicorn.conf.py \
+    medunity.wsgi:application
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
