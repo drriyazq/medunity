@@ -6,6 +6,9 @@ import 'package:go_router/go_router.dart';
 import 'features/auth/pending_verification_screen.dart';
 import 'features/auth/phone_signin_screen.dart';
 import 'features/auth/rejection_screen.dart';
+import 'features/circles/circle_detail_screen.dart';
+import 'features/circles/circles_screen.dart';
+import 'features/circles/post_detail_screen.dart';
 import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
@@ -78,6 +81,20 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // ── Circles routes (outside shell) ─────────────────────────────────────
+      GoRoute(
+        path: '/circles/:id',
+        builder: (_, state) =>
+            CircleDetailScreen(circleId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/circles/:id/posts/:postId',
+        builder: (_, state) => PostDetailScreen(
+          circleId: int.parse(state.pathParameters['id']!),
+          postId: int.parse(state.pathParameters['postId']!),
+        ),
+      ),
+
       // ── SOS routes (outside shell — full-screen) ────────────────────────────
       GoRoute(
         path: '/sos/countdown',
@@ -117,7 +134,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => HomeShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (_, __) => const _PlaceholderScreen('Home')),
-          GoRoute(path: '/circles', builder: (_, __) => const _PlaceholderScreen('Circles')),
+          GoRoute(path: '/circles', builder: (_, __) => const CirclesScreen()),
           GoRoute(path: '/consultants', builder: (_, __) => const _PlaceholderScreen('Consultants')),
           GoRoute(path: '/marketplace', builder: (_, __) => const _PlaceholderScreen('Marketplace')),
           GoRoute(path: '/profile', builder: (_, __) => const _PlaceholderScreen('Profile')),

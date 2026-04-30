@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "api",
     "accounts",
     "sos",
+    "circles",
 ]
 
 MIDDLEWARE = [
