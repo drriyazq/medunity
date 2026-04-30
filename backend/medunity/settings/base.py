@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     # local
     "api",
     "accounts",
+    "sos",
 ]
 
 MIDDLEWARE = [

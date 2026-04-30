@@ -8,16 +8,25 @@ import '../data/local/hive_setup.dart';
 final FlutterLocalNotificationsPlugin _localNotifications =
     FlutterLocalNotificationsPlugin();
 
+// Router navigate callback — set by main.dart after router is created
+typedef NavigateFn = void Function(String path);
+NavigateFn? _navigate;
+
+void setPushNavigate(NavigateFn fn) => _navigate = fn;
+
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
 
-  /// Call once after app startup and user login.
   static Future<void> init() async {
     await _initLocalNotifications();
     await _requestPermission();
     _listenForeground();
     _listenTap();
     _fcm.onTokenRefresh.listen(_onTokenRefresh);
+
+    // Handle tap when app was terminated
+    final initial = await _fcm.getInitialMessage();
+    if (initial != null) _routeMessage(initial.data);
   }
 
   static Future<void> registerCurrentDevice(dio) async {
@@ -44,9 +53,15 @@ class PushService {
   static Future<void> _initLocalNotifications() async {
     const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const initSettings = InitializationSettings(android: androidSettings);
-    await _localNotifications.initialize(initSettings);
+    await _localNotifications.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (details) {
+        final payload = details.payload;
+        if (payload != null) _navigate?.call(payload);
+      },
+    );
 
-    // SOS high-priority channel (Phase 2: custom sound + full-screen intent)
+    // SOS high-priority channel
     const sosChannel = AndroidNotificationChannel(
       'sos_critical',
       'SOS Alerts',
@@ -69,7 +84,6 @@ class PushService {
         _showSosNotification(message);
         return;
       }
-      // Default notification for other types
       _localNotifications.show(
         message.hashCode,
         message.notification?.title,
@@ -87,28 +101,29 @@ class PushService {
 
   static void _listenTap() {
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      final deepLink = message.data['deep_link'] as String?;
-      if (deepLink != null) {
-        // Phase 2+: router.push(deepLink)
-        debugPrint('[FCM] Deep link: $deepLink');
-      }
+      _routeMessage(message.data);
     });
+  }
+
+  static void _routeMessage(Map<String, dynamic> data) {
+    final deepLink = data['deep_link'] as String?;
+    if (deepLink != null) _navigate?.call(deepLink);
   }
 
   static void _onTokenRefresh(String token) {
     HiveSetup.sessionBox.put('fcm_token', token);
-    // Phase 1: re-register token on backend
   }
 
   static Future<void> _showSosNotification(RemoteMessage message) async {
-    // Full-screen intent + siren added in Phase 2 when siren asset is available
+    final alertId = message.data['alert_id'] ?? '';
+    final categoryDisplay = message.data['category_display'] ?? 'SOS Alert';
+    final deepLink = message.data['deep_link'] ?? '/sos/incoming/$alertId';
+
     await _localNotifications.show(
       message.hashCode,
-      '🚨 ${message.data['requester_clinic_name'] ?? 'SOS Alert'}',
-      message.data['message']?.isNotEmpty == true
-          ? message.data['message']
-          : 'Nearby doctor needs assistance — tap to respond',
-      const NotificationDetails(
+      '🆘 $categoryDisplay',
+      'A nearby doctor needs help — tap to respond',
+      NotificationDetails(
         android: AndroidNotificationDetails(
           'sos_critical',
           'SOS Alerts',
@@ -118,9 +133,13 @@ class PushService {
           playSound: true,
           enableVibration: true,
           enableLights: true,
+          color: const Color(0xFFD32F2F),
+          ledColor: const Color(0xFFD32F2F),
+          ledOnMs: 300,
+          ledOffMs: 300,
         ),
       ),
-      payload: message.data['deep_link'],
+      payload: deepLink,
     );
   }
 }

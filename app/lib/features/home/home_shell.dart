@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../theme.dart';
+import '../sos/category_sheet.dart';
 
 class HomeShell extends StatelessWidget {
   final Widget child;
@@ -15,6 +16,27 @@ class HomeShell extends StatelessWidget {
     (icon: Icons.person_outline, label: 'Profile', path: '/profile'),
   ];
 
+  Future<void> _onSosTap(BuildContext context) async {
+    final result = await showSosCategorySheet(context);
+    if (result == null || !context.mounted) return;
+
+    final categoryLabels = {
+      'medical_emergency': 'Medical Emergency',
+      'legal_issue': 'Legal Issue',
+      'clinic_threat': 'Clinic Under Threat',
+      'urgent_clinical': 'Urgent Clinical Assistance',
+    };
+
+    context.push(
+      '/sos/countdown',
+      extra: {
+        'category': result.category,
+        'categoryDisplay': categoryLabels[result.category] ?? result.category,
+        'position': result.position,
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
@@ -24,19 +46,13 @@ class HomeShell extends StatelessWidget {
       body: Stack(
         children: [
           child,
-          // SOS FAB — persistent overlay (Phase 2: wired to SOS flow)
           Positioned(
             right: 16,
             bottom: 80,
             child: FloatingActionButton(
               backgroundColor: MedUnityColors.sos,
               foregroundColor: Colors.white,
-              onPressed: () {
-                // Phase 2: navigate to SOS countdown
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('SOS — coming in Phase 2')),
-                );
-              },
+              onPressed: () => _onSosTap(context),
               child: const Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

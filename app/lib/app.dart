@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
 import 'features/auth/pending_verification_screen.dart';
@@ -8,6 +9,10 @@ import 'features/auth/rejection_screen.dart';
 import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
+import 'features/sos/incoming_sos_screen.dart';
+import 'features/sos/sos_countdown_screen.dart';
+import 'features/sos/sos_status_screen.dart';
+import 'services/push_service.dart';
 import 'state/auth_provider.dart';
 import 'theme.dart';
 
@@ -21,8 +26,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       final auth = ref.read(authProvider);
       final loc = state.uri.path;
 
-      // Always allow consent
       if (loc == '/consent') return null;
+
+      // SOS screens require verified — redirect to home which will redirect if needed
+      if (loc.startsWith('/sos/')) {
+        if (auth.status != AuthStatus.verified) return '/signin';
+        return null;
+      }
 
       switch (auth.status) {
         case AuthStatus.loading:
@@ -33,7 +43,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           return '/signin';
 
         case AuthStatus.tokenIssued:
-          // Has JWT but no profile submitted yet
           if (loc == '/onboarding/profile') return null;
           return '/onboarding/profile';
 
@@ -46,7 +55,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           return '/rejected';
 
         case AuthStatus.verified:
-          // If on auth screens, redirect to home
           if (['/signin', '/onboarding/profile', '/pending-verification', '/rejected']
               .contains(loc)) {
             return '/home';
@@ -69,6 +77,42 @@ final routerProvider = Provider<GoRouter>((ref) {
           return RejectionScreen(reason: reason);
         },
       ),
+
+      // ── SOS routes (outside shell — full-screen) ────────────────────────────
+      GoRoute(
+        path: '/sos/countdown',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return SosCountdownScreen(
+            category: extra['category'] as String,
+            categoryDisplay: extra['categoryDisplay'] as String,
+            position: extra['position'] as Position,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/sos/status/:alertId',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>? ?? {};
+          final alertId = int.parse(state.pathParameters['alertId']!);
+          return SosStatusScreen(
+            alertId: alertId,
+            recipientCount: extra['recipientCount'] as int? ?? 0,
+            radiusKm: (extra['radiusKm'] as num?)?.toDouble() ?? 1.0,
+            category: extra['category'] as String? ?? '',
+            categoryDisplay: extra['categoryDisplay'] as String? ?? 'SOS',
+          );
+        },
+      ),
+      GoRoute(
+        path: '/sos/incoming/:alertId',
+        builder: (context, state) {
+          final alertId = int.parse(state.pathParameters['alertId']!);
+          return IncomingSosScreen(alertId: alertId);
+        },
+      ),
+
+      // ── Home shell ──────────────────────────────────────────────────────────
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
         routes: [
@@ -83,7 +127,6 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-// Makes GoRouter listen to authProvider changes for redirect
 final _authListenableProvider = Provider((ref) {
   return _AuthListenable(ref);
 });
@@ -100,6 +143,7 @@ class MedUnityApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    setPushNavigate((path) => router.push(path));
     return MaterialApp.router(
       title: 'MedUnity',
       theme: MedUnityTheme.light(),
