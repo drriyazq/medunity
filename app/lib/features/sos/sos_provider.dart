@@ -48,6 +48,7 @@ class SosSendNotifier extends StateNotifier<SosSendState> {
     required String category,
     required double lat,
     required double lng,
+    List<int>? recipientIds,
   }) async {
     state = const SosSendState(status: SosSendStatus.sending);
     final dio = _ref.read(dioProvider);
@@ -56,6 +57,7 @@ class SosSendNotifier extends StateNotifier<SosSendState> {
         'category': category,
         'lat': lat,
         'lng': lng,
+        if (recipientIds != null) 'recipient_ids': recipientIds,
       });
       state = SosSendState(
         status: SosSendStatus.success,
@@ -112,6 +114,29 @@ final sosStatusProvider = StateNotifierProvider.autoDispose
     .family<SosStatusNotifier, AsyncValue<Map<String, dynamic>>, int>(
   (ref, alertId) => SosStatusNotifier(ref, alertId),
 );
+
+// ── Nearby doctors (for SOS recipient picker) ─────────────────────────────────
+
+class NearbyDoctorsArgs {
+  final double lat;
+  final double lng;
+  const NearbyDoctorsArgs(this.lat, this.lng);
+  @override
+  bool operator ==(Object other) =>
+      other is NearbyDoctorsArgs && other.lat == lat && other.lng == lng;
+  @override
+  int get hashCode => Object.hash(lat, lng);
+}
+
+final nearbyDoctorsProvider = FutureProvider.autoDispose
+    .family<Map<String, dynamic>, NearbyDoctorsArgs>((ref, args) async {
+  final dio = ref.read(dioProvider);
+  final resp = await dio.get('/sos/nearby-doctors/', queryParameters: {
+    'lat': args.lat,
+    'lng': args.lng,
+  });
+  return Map<String, dynamic>.from(resp.data as Map);
+});
 
 // ── Incoming SOS ──────────────────────────────────────────────────────────────
 

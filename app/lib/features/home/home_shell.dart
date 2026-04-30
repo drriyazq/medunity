@@ -28,7 +28,7 @@ class HomeShell extends StatelessWidget {
     };
 
     context.push(
-      '/sos/countdown',
+      '/sos/select-recipients',
       extra: {
         'category': result.category,
         'categoryDisplay': categoryLabels[result.category] ?? result.category,

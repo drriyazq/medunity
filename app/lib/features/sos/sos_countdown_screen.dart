@@ -12,12 +12,14 @@ class SosCountdownScreen extends ConsumerStatefulWidget {
   final String category;
   final String categoryDisplay;
   final Position position;
+  final List<int>? recipientIds;
 
   const SosCountdownScreen({
     super.key,
     required this.category,
     required this.categoryDisplay,
     required this.position,
+    this.recipientIds,
   });
 
   @override
@@ -70,6 +72,7 @@ class _SosCountdownScreenState extends ConsumerState<SosCountdownScreen>
           category: widget.category,
           lat: widget.position.latitude,
           lng: widget.position.longitude,
+          recipientIds: widget.recipientIds,
         );
     if (!mounted) return;
     final state = ref.read(sosSendProvider);
@@ -155,7 +158,9 @@ class _SosCountdownScreenState extends ConsumerState<SosCountdownScreen>
               ),
               const SizedBox(height: 8),
               Text(
-                'Nearby doctors will be alerted immediately.',
+                widget.recipientIds == null
+                    ? 'Nearby doctors will be alerted immediately.'
+                    : '${widget.recipientIds!.length} selected doctor${widget.recipientIds!.length == 1 ? '' : 's'} will be alerted immediately.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 14, color: Colors.grey[400]),
               ),

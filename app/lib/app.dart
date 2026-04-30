@@ -26,6 +26,7 @@ import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
 import 'features/sos/incoming_sos_screen.dart';
+import 'features/sos/select_recipients_screen.dart';
 import 'features/sos/sos_countdown_screen.dart';
 import 'features/sos/sos_status_screen.dart';
 import 'services/push_service.dart';
@@ -152,6 +153,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // ── SOS routes (outside shell — full-screen) ────────────────────────────
       GoRoute(
+        path: '/sos/select-recipients',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+          return SelectRecipientsScreen(
+            category: extra['category'] as String,
+            categoryDisplay: extra['categoryDisplay'] as String,
+            position: extra['position'] as Position,
+          );
+        },
+      ),
+      GoRoute(
         path: '/sos/countdown',
         builder: (context, state) {
           final extra = state.extra as Map<String, dynamic>;
@@ -159,6 +171,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             category: extra['category'] as String,
             categoryDisplay: extra['categoryDisplay'] as String,
             position: extra['position'] as Position,
+            recipientIds: (extra['recipientIds'] as List?)?.cast<int>(),
           );
         },
       ),

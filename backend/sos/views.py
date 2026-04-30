@@ -10,7 +10,7 @@ from accounts.models import DeviceToken
 from accounts.permissions import IsAdminVerified
 from medunity.fcm import send_push_notification
 
-from .models import SosAlert, SosResponse, find_nearby_clinics
+from .models import SosAlert, SosResponse, find_nearby_clinics, haversine_km
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,29 @@ def send_sos(request):
 
     # Find nearby clinics (auto-expand 1 → 2 → 5 km)
     clinics, radius_used = find_nearby_clinics(lat, lng, prof.id)
+
+    # Optional: caller picks a subset of recipients (privacy control).
+    # If recipient_ids omitted, fall back to broadcasting to all nearby (legacy).
+    recipient_ids = request.data.get('recipient_ids')
+    if recipient_ids is not None:
+        if not isinstance(recipient_ids, list) or not recipient_ids:
+            return Response(
+                {'detail': 'Select at least one recipient.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            rid_set = {int(r) for r in recipient_ids}
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'recipient_ids must be integers.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        clinics = [c for c in clinics if c.owner_id in rid_set]
+        if not clinics:
+            return Response(
+                {'detail': 'None of the selected recipients are in range.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     alert = SosAlert.objects.create(
         sender=prof,
@@ -99,6 +122,44 @@ def send_sos(request):
         'radius_km': radius_used,
         'recipient_count': len(clinics),
     }, status=status.HTTP_201_CREATED)
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminVerified])
+def nearby_doctors(request):
+    """List doctors within auto-expand radius for the SOS recipient picker.
+
+    Lets the sender choose who receives their SOS instead of broadcasting
+    to every nearby doctor (privacy control).
+    """
+    prof = request.user.professional
+    try:
+        lat = float(request.query_params['lat'])
+        lng = float(request.query_params['lng'])
+    except (KeyError, TypeError, ValueError):
+        return Response(
+            {'detail': 'lat and lng query params required.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    clinics, radius_km = find_nearby_clinics(lat, lng, prof.id)
+    doctors = []
+    for c in clinics:
+        owner = c.owner
+        try:
+            spec = owner.get_specialization_display()
+        except Exception:
+            spec = ''
+        doctors.append({
+            'professional_id': owner.id,
+            'full_name': owner.full_name,
+            'specialization_display': spec,
+            'clinic_name': c.name,
+            'clinic_city': c.city,
+            'distance_km': round(haversine_km(lat, lng, c.lat, c.lng), 2),
+        })
+    doctors.sort(key=lambda d: d['distance_km'])
+    return Response({'doctors': doctors, 'radius_km': radius_km})
 
 
 @api_view(['POST'])
