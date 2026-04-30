@@ -25,12 +25,57 @@ class HomeScreen extends ConsumerWidget {
           children: const [
             _BrowniePointsCard(),
             SizedBox(height: 20),
+            _QuickNavRow(),
+            SizedBox(height: 20),
             _CoverageSection(),
             SizedBox(height: 20),
             _LeaderboardPreview(),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Quick nav row ─────────────────────────────────────────────────────────────
+
+class _QuickNavRow extends StatelessWidget {
+  const _QuickNavRow();
+
+  static const _items = [
+    (icon: Icons.store_outlined, label: 'Vendors', path: '/vendors'),
+    (icon: Icons.handshake_outlined, label: 'Support', path: '/support'),
+    (icon: Icons.leaderboard, label: 'Rankings', path: '/support/leaderboard'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: _items.map((item) => Expanded(
+        child: Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: InkWell(
+            onTap: () => context.push(item.path),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey[200]!),
+              ),
+              child: Column(
+                children: [
+                  Icon(item.icon, color: MedUnityColors.primary, size: 24),
+                  const SizedBox(height: 4),
+                  Text(item.label,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      )).toList(),
     );
   }
 }

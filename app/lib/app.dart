@@ -16,8 +16,11 @@ import 'features/equipment/listing_detail_screen.dart';
 import 'features/equipment/my_listings_screen.dart';
 import 'features/equipment/pool_detail_screen.dart';
 import 'features/home_screen/home_screen.dart';
+import 'features/profile/profile_screen.dart';
 import 'features/support/leaderboard_screen.dart';
 import 'features/support/support_screen.dart';
+import 'features/vendors/vendor_detail_screen.dart';
+import 'features/vendors/vendors_screen.dart';
 import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
@@ -88,6 +91,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           final reason = ref.read(authProvider).rejectionReason;
           return RejectionScreen(reason: reason);
         },
+      ),
+
+      // ── Vendor routes (outside shell) ───────────────────────────────────────
+      GoRoute(path: '/vendors', builder: (_, __) => const VendorsScreen()),
+      GoRoute(
+        path: '/vendors/:id',
+        builder: (_, state) =>
+            VendorDetailScreen(vendorId: int.parse(state.pathParameters['id']!)),
       ),
 
       // ── Support routes (outside shell) ──────────────────────────────────────
@@ -174,7 +185,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/circles', builder: (_, __) => const CirclesScreen()),
           GoRoute(path: '/consultants', builder: (_, __) => const ConsultantsScreen()),
           GoRoute(path: '/marketplace', builder: (_, __) => const EquipmentScreen()),
-          GoRoute(path: '/profile', builder: (_, __) => const _PlaceholderScreen('Profile')),
+          GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
         ],
       ),
     ],
