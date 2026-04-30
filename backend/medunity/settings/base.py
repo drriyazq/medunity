@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "circles",
     "consultants",
     "equipment",
+    "support",
 ]
 
 MIDDLEWARE = [

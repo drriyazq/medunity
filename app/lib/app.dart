@@ -15,6 +15,9 @@ import 'features/equipment/equipment_screen.dart';
 import 'features/equipment/listing_detail_screen.dart';
 import 'features/equipment/my_listings_screen.dart';
 import 'features/equipment/pool_detail_screen.dart';
+import 'features/home_screen/home_screen.dart';
+import 'features/support/leaderboard_screen.dart';
+import 'features/support/support_screen.dart';
 import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
@@ -86,6 +89,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           return RejectionScreen(reason: reason);
         },
       ),
+
+      // ── Support routes (outside shell) ──────────────────────────────────────
+      GoRoute(path: '/support', builder: (_, __) => const SupportScreen()),
+      GoRoute(path: '/support/leaderboard', builder: (_, __) => const LeaderboardScreen()),
+      GoRoute(path: '/support/requests/:id', builder: (_, __) => const SupportScreen()),
 
       // ── Equipment routes (outside shell) ────────────────────────────────────
       GoRoute(
@@ -162,7 +170,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
         routes: [
-          GoRoute(path: '/home', builder: (_, __) => const _PlaceholderScreen('Home')),
+          GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
           GoRoute(path: '/circles', builder: (_, __) => const CirclesScreen()),
           GoRoute(path: '/consultants', builder: (_, __) => const ConsultantsScreen()),
           GoRoute(path: '/marketplace', builder: (_, __) => const EquipmentScreen()),

@@ -11,6 +11,7 @@ urlpatterns = [
     path("api/v1/circles/", include("circles.urls")),
     path("api/v1/consultants/", include("consultants.urls")),
     path("api/v1/equipment/", include("equipment.urls")),
+    path("api/v1/support/", include("support.urls")),
 ]
 
 if settings.DEBUG:
