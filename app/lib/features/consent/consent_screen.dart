@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/local/hive_setup.dart';
 import '../../theme.dart';
 
 /// DPDP Act 2023 compliant consent screen — first screen on launch.
@@ -63,7 +64,12 @@ class _ConsentScreenState extends State<ConsentScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _canProceed ? () => context.go('/home') : null,
+                  onPressed: _canProceed
+                      ? () async {
+                          await HiveSetup.sessionBox.put('consent_accepted', true);
+                          if (context.mounted) context.go('/home');
+                        }
+                      : null,
                   child: const Text('Continue'),
                 ),
               ),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 
+import 'data/local/hive_setup.dart';
 import 'features/auth/pending_verification_screen.dart';
 import 'features/auth/phone_signin_screen.dart';
 import 'features/auth/rejection_screen.dart';
@@ -34,14 +35,20 @@ import 'theme.dart';
 final routerProvider = Provider<GoRouter>((ref) {
   final authListenable = ref.watch(_authListenableProvider);
 
+  final consentAccepted = HiveSetup.sessionBox.get('consent_accepted') == true;
+
   return GoRouter(
-    initialLocation: '/consent',
+    initialLocation: consentAccepted ? '/signin' : '/consent',
     refreshListenable: authListenable,
     redirect: (context, state) {
       final auth = ref.read(authProvider);
       final loc = state.uri.path;
+      final accepted = HiveSetup.sessionBox.get('consent_accepted') == true;
 
-      if (loc == '/consent') return null;
+      if (loc == '/consent') {
+        if (!accepted) return null;
+        // Already accepted — fall through to auth-based redirect below
+      }
 
       // SOS screens require verified — redirect to home which will redirect if needed
       if (loc.startsWith('/sos/')) {
