@@ -9,6 +9,8 @@ import 'features/auth/rejection_screen.dart';
 import 'features/circles/circle_detail_screen.dart';
 import 'features/circles/circles_screen.dart';
 import 'features/circles/post_detail_screen.dart';
+import 'features/consultants/consultant_profile_screen.dart';
+import 'features/consultants/consultants_screen.dart';
 import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
@@ -81,6 +83,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // ── Consultant routes (outside shell) ───────────────────────────────────
+      GoRoute(
+        path: '/consultants/profile/:id',
+        builder: (_, state) =>
+            ConsultantProfileScreen(profId: int.parse(state.pathParameters['id']!)),
+      ),
+
       // ── Circles routes (outside shell) ─────────────────────────────────────
       GoRoute(
         path: '/circles/:id',
@@ -135,7 +144,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(path: '/home', builder: (_, __) => const _PlaceholderScreen('Home')),
           GoRoute(path: '/circles', builder: (_, __) => const CirclesScreen()),
-          GoRoute(path: '/consultants', builder: (_, __) => const _PlaceholderScreen('Consultants')),
+          GoRoute(path: '/consultants', builder: (_, __) => const ConsultantsScreen()),
           GoRoute(path: '/marketplace', builder: (_, __) => const _PlaceholderScreen('Marketplace')),
           GoRoute(path: '/profile', builder: (_, __) => const _PlaceholderScreen('Profile')),
         ],
