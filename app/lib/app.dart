@@ -11,6 +11,10 @@ import 'features/circles/circles_screen.dart';
 import 'features/circles/post_detail_screen.dart';
 import 'features/consultants/consultant_profile_screen.dart';
 import 'features/consultants/consultants_screen.dart';
+import 'features/equipment/equipment_screen.dart';
+import 'features/equipment/listing_detail_screen.dart';
+import 'features/equipment/my_listings_screen.dart';
+import 'features/equipment/pool_detail_screen.dart';
 import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
@@ -83,6 +87,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
+      // ── Equipment routes (outside shell) ────────────────────────────────────
+      GoRoute(
+        path: '/equipment/pools/:id',
+        builder: (_, state) =>
+            PoolDetailScreen(poolId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/equipment/listings/mine',
+        builder: (_, __) => const MyListingsScreen(),
+      ),
+      GoRoute(
+        path: '/equipment/listings/:id',
+        builder: (_, state) =>
+            ListingDetailScreen(listingId: int.parse(state.pathParameters['id']!)),
+      ),
+
       // ── Consultant routes (outside shell) ───────────────────────────────────
       GoRoute(
         path: '/consultants/profile/:id',
@@ -145,7 +165,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/home', builder: (_, __) => const _PlaceholderScreen('Home')),
           GoRoute(path: '/circles', builder: (_, __) => const CirclesScreen()),
           GoRoute(path: '/consultants', builder: (_, __) => const ConsultantsScreen()),
-          GoRoute(path: '/marketplace', builder: (_, __) => const _PlaceholderScreen('Marketplace')),
+          GoRoute(path: '/marketplace', builder: (_, __) => const EquipmentScreen()),
           GoRoute(path: '/profile', builder: (_, __) => const _PlaceholderScreen('Profile')),
         ],
       ),

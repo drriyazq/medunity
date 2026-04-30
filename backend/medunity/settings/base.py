@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "sos",
     "circles",
     "consultants",
+    "equipment",
 ]
 
 MIDDLEWARE = [
