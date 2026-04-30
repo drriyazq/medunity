@@ -56,9 +56,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   Future<void> onFirebaseTokenReceived(String firebaseIdToken) async {
+    debugPrint('[Auth] onFirebaseTokenReceived START — token len: ${firebaseIdToken.length}');
     final dio = _ref.read(dioProvider);
+    debugPrint('[Auth] Dio baseUrl: ${dio.options.baseUrl}');
     try {
+      debugPrint('[Auth] POSTing to /auth/firebase/...');
       final resp = await dio.post('/auth/firebase/', data: {'id_token': firebaseIdToken});
+      debugPrint('[Auth] Got response: status=${resp.statusCode} data=${resp.data}');
       HiveSetup.sessionBox.put('access_token', resp.data['access']);
       HiveSetup.sessionBox.put('refresh_token', resp.data['refresh']);
 
@@ -67,8 +71,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } else {
         state = const AuthState(status: AuthStatus.tokenIssued);
       }
-    } catch (e) {
-      debugPrint('[Auth] onFirebaseTokenReceived error: $e');
+    } catch (e, st) {
+      debugPrint('[Auth] onFirebaseTokenReceived ERROR: $e');
+      debugPrint('[Auth] Stacktrace: $st');
       state = const AuthState(status: AuthStatus.loggedOut);
     }
   }

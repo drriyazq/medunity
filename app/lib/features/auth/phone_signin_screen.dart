@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -74,12 +75,19 @@ class _PhoneSignInScreenState extends ConsumerState<PhoneSignInScreen> {
   }
 
   Future<void> _signInWithCredential(PhoneAuthCredential credential) async {
+    debugPrint('[SignIn] _signInWithCredential called');
     try {
+      debugPrint('[SignIn] calling signInWithCredential...');
       final result = await FirebaseAuth.instance.signInWithCredential(credential);
+      debugPrint('[SignIn] got user: ${result.user?.uid}');
       final idToken = await result.user?.getIdToken();
+      debugPrint('[SignIn] got idToken: ${idToken?.length} chars');
       if (idToken == null) throw Exception('No ID token');
       await ref.read(authProvider.notifier).onFirebaseTokenReceived(idToken);
-    } catch (e) {
+      debugPrint('[SignIn] onFirebaseTokenReceived returned');
+    } catch (e, st) {
+      debugPrint('[SignIn] ERROR: $e');
+      debugPrint('[SignIn] Stack: $st');
       setState(() { _loading = false; _error = 'Sign-in failed: $e'; });
     }
   }
