@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../data/api/client.dart';
+import '../../data/local/hive_setup.dart';
 import '../../state/auth_provider.dart';
 import '../../theme.dart';
 
@@ -54,6 +55,8 @@ const _states = [
   'West Bengal', 'Delhi', 'Jammu and Kashmir', 'Ladakh', 'Chandigarh',
 ];
 
+const _draftKey = 'profile_setup_draft';
+
 
 class ProfileSetupScreen extends ConsumerStatefulWidget {
   const ProfileSetupScreen({super.key});
@@ -88,18 +91,101 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   final _pincodeCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    _restoreDraft();
+  }
+
+  @override
+  void dispose() {
+    _saveDraft();
+    _pageCtrl.dispose();
+    _nameCtrl.dispose();
+    _yearsCtrl.dispose();
+    _licenseCtrl.dispose();
+    _clinicNameCtrl.dispose();
+    _addressCtrl.dispose();
+    _cityCtrl.dispose();
+    _pincodeCtrl.dispose();
+    _phoneCtrl.dispose();
+    super.dispose();
+  }
+
+  void _restoreDraft() {
+    final raw = HiveSetup.sessionBox.get(_draftKey);
+    if (raw is! Map) return;
+    final d = Map<String, dynamic>.from(raw);
+    _nameCtrl.text = d['name'] ?? '';
+    _role = d['role'] ?? _roles[0].$1;
+    _specialization = d['specialization'] ?? _specializations[0].$1;
+    _yearsCtrl.text = d['years'] ?? '';
+    _council = d['council'] ?? _councils[0].$1;
+    _licenseCtrl.text = d['license'] ?? '';
+    _clinicNameCtrl.text = d['clinicName'] ?? '';
+    _addressCtrl.text = d['address'] ?? '';
+    _cityCtrl.text = d['city'] ?? '';
+    _clinicState = d['clinicState'] ?? _states[0];
+    _pincodeCtrl.text = d['pincode'] ?? '';
+    _phoneCtrl.text = d['phone'] ?? '';
+    _step = (d['step'] as int?) ?? 0;
+    final lic = d['licenseDocPath'] as String?;
+    final deg = d['degreeDocPath'] as String?;
+    if (lic != null && File(lic).existsSync()) _licenseDoc = File(lic);
+    if (deg != null && File(deg).existsSync()) _degreeDoc = File(deg);
+    if (_step > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _pageCtrl.jumpToPage(_step);
+      });
+    }
+  }
+
+  void _saveDraft() {
+    HiveSetup.sessionBox.put(_draftKey, {
+      'step': _step,
+      'name': _nameCtrl.text,
+      'role': _role,
+      'specialization': _specialization,
+      'years': _yearsCtrl.text,
+      'council': _council,
+      'license': _licenseCtrl.text,
+      'clinicName': _clinicNameCtrl.text,
+      'address': _addressCtrl.text,
+      'city': _cityCtrl.text,
+      'clinicState': _clinicState,
+      'pincode': _pincodeCtrl.text,
+      'phone': _phoneCtrl.text,
+      'licenseDocPath': _licenseDoc?.path,
+      'degreeDocPath': _degreeDoc?.path,
+    });
+  }
+
   Future<void> _pickFile(void Function(File) setter) async {
     final xFile = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 80);
-    if (xFile != null) setState(() => setter(File(xFile.path)));
+    if (xFile != null) {
+      setState(() => setter(File(xFile.path)));
+      _saveDraft();
+    }
   }
 
   void _next() {
+    _saveDraft();
     if (_step < 2) {
       setState(() => _step++);
       _pageCtrl.animateToPage(_step, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
     } else {
       _submit();
     }
+  }
+
+  void _back() {
+    if (_step == 0) return;
+    setState(() {
+      _step--;
+      _error = null;
+    });
+    _pageCtrl.animateToPage(_step, duration: const Duration(milliseconds: 300), curve: Curves.easeInOut);
+    _saveDraft();
   }
 
   Future<void> _submit() async {
@@ -126,6 +212,7 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
       });
       await dio.post('/auth/profile/', data: form,
           options: Options(contentType: 'multipart/form-data'));
+      await HiveSetup.sessionBox.delete(_draftKey);
       await ref.read(authProvider.notifier).onProfileCreated();
     } on DioException catch (e) {
       setState(() {
@@ -139,39 +226,68 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Profile Setup — Step ${_step + 1} of 3'),
-        centerTitle: true,
-      ),
-      body: Column(
-        children: [
-          LinearProgressIndicator(value: (_step + 1) / 3, color: MedUnityColors.primary),
-          Expanded(
-            child: PageView(
-              controller: _pageCtrl,
-              physics: const NeverScrollableScrollPhysics(),
-              children: [_step1(), _step2(), _step3()],
-            ),
+    return PopScope(
+      canPop: _step == 0,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _back();
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: _step > 0
+              ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _back)
+              : null,
+          automaticallyImplyLeading: _step == 0,
+          title: Text(
+            'Step ${_step + 1} of 3',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              child: Text(_error!, style: const TextStyle(color: MedUnityColors.sos)),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(24),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _submitting ? null : _next,
-                child: _submitting
-                    ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(_step < 2 ? 'Next' : 'Submit for Verification'),
+          centerTitle: true,
+        ),
+        body: Column(
+          children: [
+            LinearProgressIndicator(value: (_step + 1) / 3, color: MedUnityColors.primary),
+            Expanded(
+              child: PageView(
+                controller: _pageCtrl,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [_step1(), _step2(), _step3()],
               ),
             ),
-          ),
-        ],
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                child: Text(_error!, style: const TextStyle(color: MedUnityColors.sos)),
+              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+              child: Row(
+                children: [
+                  if (_step > 0) ...[
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: _submitting ? null : _back,
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        ),
+                        child: const Text('Back'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                  ],
+                  Expanded(
+                    flex: _step > 0 ? 2 : 1,
+                    child: ElevatedButton(
+                      onPressed: _submitting ? null : _next,
+                      child: _submitting
+                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : Text(_step < 2 ? 'Next' : 'Submit for Verification'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -183,16 +299,18 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     _label('Role'),
     DropdownButtonFormField<String>(
       value: _role,
-      items: _roles.map((r) => DropdownMenuItem(value: r.$1, child: Text(r.$2))).toList(),
-      onChanged: (v) => setState(() => _role = v!),
+      isExpanded: true,
+      items: _roles.map((r) => DropdownMenuItem(value: r.$1, child: Text(r.$2, overflow: TextOverflow.ellipsis))).toList(),
+      onChanged: (v) { setState(() => _role = v!); _saveDraft(); },
       decoration: const InputDecoration(),
     ),
     const SizedBox(height: 20),
     _label('Specialization'),
     DropdownButtonFormField<String>(
       value: _specialization,
-      items: _specializations.map((s) => DropdownMenuItem(value: s.$1, child: Text(s.$2))).toList(),
-      onChanged: (v) => setState(() => _specialization = v!),
+      isExpanded: true,
+      items: _specializations.map((s) => DropdownMenuItem(value: s.$1, child: Text(s.$2, overflow: TextOverflow.ellipsis))).toList(),
+      onChanged: (v) { setState(() => _specialization = v!); _saveDraft(); },
       decoration: const InputDecoration(),
     ),
     const SizedBox(height: 20),
@@ -205,8 +323,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     _label('Medical Council'),
     DropdownButtonFormField<String>(
       value: _council,
-      items: _councils.map((c) => DropdownMenuItem(value: c.$1, child: Text(c.$2))).toList(),
-      onChanged: (v) => setState(() => _council = v!),
+      isExpanded: true,
+      items: _councils.map((c) => DropdownMenuItem(value: c.$1, child: Text(c.$2, overflow: TextOverflow.ellipsis))).toList(),
+      onChanged: (v) { setState(() => _council = v!); _saveDraft(); },
       decoration: const InputDecoration(),
     ),
     const SizedBox(height: 20),
@@ -249,8 +368,9 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
     _label('State'),
     DropdownButtonFormField<String>(
       value: _clinicState,
-      items: _states.map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-      onChanged: (v) => setState(() => _clinicState = v!),
+      isExpanded: true,
+      items: _states.map((s) => DropdownMenuItem(value: s, child: Text(s, overflow: TextOverflow.ellipsis))).toList(),
+      onChanged: (v) { setState(() => _clinicState = v!); _saveDraft(); },
       decoration: const InputDecoration(),
     ),
     const SizedBox(height: 20),
@@ -292,7 +412,7 @@ class _PickerRow extends StatelessWidget {
       child: Row(children: [
         const Icon(Icons.upload_file, color: MedUnityColors.primary),
         const SizedBox(width: 12),
-        Expanded(child: Text(label, style: const TextStyle(color: MedUnityColors.textSecondary))),
+        Expanded(child: Text(label, style: const TextStyle(color: MedUnityColors.textSecondary), overflow: TextOverflow.ellipsis)),
       ]),
     ),
   );
