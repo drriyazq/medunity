@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../data/api/client.dart';
 import '../../state/auth_provider.dart';
 import '../../theme.dart';
+import 'set_clinic_location.dart';
 
 final _profileDataProvider = FutureProvider.autoDispose<Map<String, dynamic>>((ref) async {
   final dio = ref.read(dioProvider);
@@ -126,6 +127,10 @@ class _ProfileBody extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
+          // Clinic location tile
+          _ClinicLocationTile(clinic: clinic, ref: ref),
+          const SizedBox(height: 20),
+
           // Quick links
           const Text('Activity',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -209,6 +214,89 @@ class _QuickLink extends StatelessWidget {
       title: Text(label),
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: onTap,
+    );
+  }
+}
+
+class _ClinicLocationTile extends StatefulWidget {
+  final Map<String, dynamic>? clinic;
+  final WidgetRef ref;
+  const _ClinicLocationTile({required this.clinic, required this.ref});
+
+  @override
+  State<_ClinicLocationTile> createState() => _ClinicLocationTileState();
+}
+
+class _ClinicLocationTileState extends State<_ClinicLocationTile> {
+  bool _busy = false;
+
+  Future<void> _onTap() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final ok = await setClinicLocationFromGps(context, widget.ref);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (ok) {
+      // Refresh profile data so the tile reflects new lat/lng
+      // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+      widget.ref.invalidate(_profileDataProvider);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLocation = widget.clinic != null && widget.clinic!['lat'] != null;
+    final lat = widget.clinic?['lat']?.toString();
+    final lng = widget.clinic?['lng']?.toString();
+    final subtitle = hasLocation
+        ? 'GPS set: ${lat?.substring(0, lat.length.clamp(0, 8))}, ${lng?.substring(0, lng.length.clamp(0, 8))}'
+        : 'Required for SOS targeting and finding nearby consultants.';
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: hasLocation ? Colors.white : MedUnityColors.primary.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: hasLocation ? Colors.grey[200]! : MedUnityColors.primary.withOpacity(0.3),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            hasLocation ? Icons.location_on : Icons.location_off,
+            color: hasLocation ? MedUnityColors.success : MedUnityColors.primary,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasLocation ? 'Clinic Location' : 'Set Clinic Location',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                ),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: const TextStyle(
+                        fontSize: 12, color: MedUnityColors.textSecondary)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: _busy ? null : _onTap,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            ),
+            child: _busy
+                ? const SizedBox(
+                    height: 16, width: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : Text(hasLocation ? 'Update' : 'Use GPS'),
+          ),
+        ],
+      ),
     );
   }
 }
