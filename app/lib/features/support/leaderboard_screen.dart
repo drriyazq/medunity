@@ -76,17 +76,21 @@ class _MyPointsCard extends StatelessWidget {
             children: [
               const Icon(Icons.stars_rounded, color: Colors.amber, size: 32),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('$pts Brownie Points',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold)),
-                  Text('You are ranked #$rank',
-                      style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$pts Brownie Points',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis),
+                    Text('You are ranked #$rank',
+                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        overflow: TextOverflow.ellipsis),
+                  ],
+                ),
               ),
             ],
           ),

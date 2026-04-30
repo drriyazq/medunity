@@ -169,25 +169,29 @@ class _ResponseCountCard extends StatelessWidget {
         children: [
           const Icon(Icons.directions_run, color: Colors.greenAccent, size: 28),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (loading)
-                const SizedBox(
-                    width: 60,
-                    height: 20,
-                    child: LinearProgressIndicator(color: Colors.greenAccent))
-              else
-                Text(
-                  count == 0 ? 'Waiting for responses…' : '$count on their way',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold),
-                ),
-              const Text('Doctor responses',
-                  style: TextStyle(color: Colors.white54, fontSize: 13)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (loading)
+                  const SizedBox(
+                      width: 60,
+                      height: 20,
+                      child: LinearProgressIndicator(color: Colors.greenAccent))
+                else
+                  Text(
+                    count == 0 ? 'Waiting for responses…' : '$count on their way',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                const Text('Doctor responses',
+                    style: TextStyle(color: Colors.white54, fontSize: 13),
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
           ),
         ],
       ),
