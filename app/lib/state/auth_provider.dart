@@ -66,7 +66,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } else {
         state = const AuthState(status: AuthStatus.tokenIssued);
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[Auth] onFirebaseTokenReceived error: $e');
       state = const AuthState(status: AuthStatus.loggedOut);
     }
   }
