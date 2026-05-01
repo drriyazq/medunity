@@ -16,6 +16,9 @@ logger = logging.getLogger(__name__)
 
 SOS_THROTTLE_MAX = 3
 SOS_THROTTLE_WINDOW_HOURS = 24
+# First 20 MedicalProfessional accounts are founding/test users — they bypass
+# the 24h SOS throttle so they can stress-test the fan-out without hitting it.
+SOS_THROTTLE_BYPASS_MAX_PROF_ID = 20
 
 
 @api_view(['POST'])
@@ -23,14 +26,15 @@ SOS_THROTTLE_WINDOW_HOURS = 24
 def send_sos(request):
     prof = request.user.professional
 
-    # Throttle: max 3 SOS per 24h
-    cutoff = timezone.now() - timedelta(hours=SOS_THROTTLE_WINDOW_HOURS)
-    recent_count = SosAlert.objects.filter(sender=prof, created_at__gte=cutoff).count()
-    if recent_count >= SOS_THROTTLE_MAX:
-        return Response(
-            {'detail': 'SOS limit reached. You can send at most 3 SOS alerts per 24 hours.'},
-            status=status.HTTP_429_TOO_MANY_REQUESTS,
-        )
+    # Throttle: max 3 SOS per 24h, skipped for the first 20 accounts.
+    if prof.id > SOS_THROTTLE_BYPASS_MAX_PROF_ID:
+        cutoff = timezone.now() - timedelta(hours=SOS_THROTTLE_WINDOW_HOURS)
+        recent_count = SosAlert.objects.filter(sender=prof, created_at__gte=cutoff).count()
+        if recent_count >= SOS_THROTTLE_MAX:
+            return Response(
+                {'detail': 'SOS limit reached. You can send at most 3 SOS alerts per 24 hours.'},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
 
     category = request.data.get('category', '').strip()
     valid_categories = [c[0] for c in [
