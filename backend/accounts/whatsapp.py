@@ -61,6 +61,11 @@ def send_otp_template(phone: str, code: str, *, timeout: int = 15) -> dict:
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
+    # Authentication templates require BOTH the body parameter (renders {{1}}) AND
+    # a button URL parameter (sets what the Copy-code / one-tap button copies/sends).
+    # Both must repeat the same OTP string. Without the button component, Meta returns
+    # error 131008 ("Required parameter is missing"). See:
+    # https://developers.facebook.com/docs/whatsapp/cloud-api/guides/authentication-templates
     body = {
         "messaging_product": "whatsapp",
         "to": to,
@@ -68,10 +73,18 @@ def send_otp_template(phone: str, code: str, *, timeout: int = 15) -> dict:
         "template": {
             "name": template_name,
             "language": {"code": lang},
-            "components": [{
-                "type": "body",
-                "parameters": [{"type": "text", "text": str(code)}],
-            }],
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": [{"type": "text", "text": str(code)}],
+                },
+                {
+                    "type": "button",
+                    "sub_type": "url",
+                    "index": "0",
+                    "parameters": [{"type": "text", "text": str(code)}],
+                },
+            ],
         },
     }
 
