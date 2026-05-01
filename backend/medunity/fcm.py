@@ -23,6 +23,12 @@ def send_push_notification(
     try:
         from firebase_admin import messaging
 
+        # Lazy-init: Django process doesn't run a worker_process_init like Celery,
+        # and the Firebase OAuth path only initialises for /auth/firebase/ requests.
+        # Without this, SOS pushes raise "default Firebase app does not exist".
+        from medunity.firebase_init import init_firebase
+        init_firebase()
+
         payload = {}
         if data:
             payload.update({str(k): str(v) for k, v in data.items()})
