@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme.dart';
@@ -162,40 +161,6 @@ class _SosStatusScreenState extends ConsumerState<SosStatusScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 20),
-
-              // Map showing sender (red) + responders (green)
-              SizedBox(
-                height: 240,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: statusAsync.when(
-                    loading: () => const Center(
-                        child: CircularProgressIndicator(color: MedUnityColors.sos)),
-                    error: (_, __) => Center(
-                        child: Text('Could not load map.',
-                            style: TextStyle(color: Colors.grey[400]))),
-                    data: (data) {
-                      final senderLat =
-                          (data['sender_lat'] as num?)?.toDouble();
-                      final senderLng =
-                          (data['sender_lng'] as num?)?.toDouble();
-                      final dots = (data['responder_dots'] as List? ?? [])
-                          .map((d) => LatLng(
-                                (d['lat'] as num).toDouble(),
-                                (d['lng'] as num).toDouble(),
-                              ))
-                          .toList();
-                      return _ResponderMap(
-                        sender: senderLat != null && senderLng != null
-                            ? LatLng(senderLat, senderLng)
-                            : null,
-                        dots: dots,
-                      );
-                    },
-                  ),
-                ),
-              ),
               const SizedBox(height: 12),
               Text(
                 'Refreshes every 15 seconds • Alert expires in 2 hours',
@@ -253,66 +218,6 @@ class _ResponseCountCard extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ResponderMap extends StatelessWidget {
-  final LatLng? sender;
-  final List<LatLng> dots;
-  const _ResponderMap({required this.sender, required this.dots});
-
-  @override
-  Widget build(BuildContext context) {
-    if (sender == null && dots.isEmpty) {
-      return Container(
-        color: Colors.grey[900],
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.location_on_outlined, color: Colors.grey[700], size: 48),
-              const SizedBox(height: 8),
-              Text('Responder locations will appear here',
-                  style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final allPoints = <LatLng>[
-      if (sender != null) sender!,
-      ...dots,
-    ];
-    final center = LatLng(
-      allPoints.map((p) => p.latitude).reduce((a, b) => a + b) / allPoints.length,
-      allPoints.map((p) => p.longitude).reduce((a, b) => a + b) / allPoints.length,
-    );
-
-    final markers = <Marker>{
-      if (sender != null)
-        Marker(
-          markerId: const MarkerId('sender'),
-          position: sender!,
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-          infoWindow: const InfoWindow(title: 'You (SOS sender)'),
-        ),
-      ...dots.asMap().entries.map((e) => Marker(
-            markerId: MarkerId('dot_${e.key}'),
-            position: e.value,
-            icon: BitmapDescriptor.defaultMarkerWithHue(
-                BitmapDescriptor.hueGreen),
-            infoWindow: const InfoWindow(title: 'Responder'),
-          )),
-    };
-
-    return GoogleMap(
-      initialCameraPosition: CameraPosition(target: center, zoom: 14),
-      markers: markers,
-      myLocationEnabled: false,
-      zoomControlsEnabled: false,
-      mapType: MapType.normal,
     );
   }
 }
