@@ -276,6 +276,12 @@ def set_clinic_location(request):
     except (MedicalProfessional.DoesNotExist, Clinic.DoesNotExist):
         return Response({"detail": "Profile or clinic not found."}, status=status.HTTP_404_NOT_FOUND)
 
+    if clinic.location_locked:
+        return Response(
+            {"detail": "Clinic location is locked and cannot be updated from the app."},
+            status=status.HTTP_423_LOCKED,
+        )
+
     lat = request.data.get('lat')
     lng = request.data.get('lng')
     if lat is None or lng is None:

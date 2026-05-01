@@ -178,6 +178,10 @@ class Clinic(models.Model):
     lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     location_set_at = models.DateTimeField(null=True, blank=True)
+    # When True, the GPS-update endpoint refuses overwrites. Used for fixed
+    # test/dummy accounts and any clinic where the operator wants the location
+    # pinned regardless of where the doctor's phone is currently sitting.
+    location_locked = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

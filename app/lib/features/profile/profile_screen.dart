@@ -251,11 +251,14 @@ class _ClinicLocationTileState extends State<_ClinicLocationTile> {
   @override
   Widget build(BuildContext context) {
     final hasLocation = widget.clinic != null && widget.clinic!['lat'] != null;
+    final isLocked = (widget.clinic?['location_locked'] as bool?) ?? false;
     final lat = widget.clinic?['lat']?.toString();
     final lng = widget.clinic?['lng']?.toString();
-    final subtitle = hasLocation
-        ? 'GPS set: ${lat?.substring(0, lat.length.clamp(0, 8))}, ${lng?.substring(0, lng.length.clamp(0, 8))}'
-        : 'Required for SOS targeting and finding nearby consultants.';
+    final subtitle = isLocked
+        ? 'Pinned by admin: ${lat?.substring(0, lat.length.clamp(0, 8))}, ${lng?.substring(0, lng.length.clamp(0, 8))}'
+        : hasLocation
+            ? 'GPS set: ${lat?.substring(0, lat.length.clamp(0, 8))}, ${lng?.substring(0, lng.length.clamp(0, 8))}'
+            : 'Required for SOS targeting and finding nearby consultants.';
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -269,8 +272,12 @@ class _ClinicLocationTileState extends State<_ClinicLocationTile> {
       child: Row(
         children: [
           Icon(
-            hasLocation ? Icons.location_on : Icons.location_off,
-            color: hasLocation ? MedUnityColors.success : MedUnityColors.primary,
+            isLocked
+                ? Icons.lock_outline
+                : (hasLocation ? Icons.location_on : Icons.location_off),
+            color: isLocked
+                ? Colors.grey[600]
+                : (hasLocation ? MedUnityColors.success : MedUnityColors.primary),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -278,7 +285,9 @@ class _ClinicLocationTileState extends State<_ClinicLocationTile> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  hasLocation ? 'Clinic Location' : 'Set Clinic Location',
+                  isLocked
+                      ? 'Clinic Location (Locked)'
+                      : (hasLocation ? 'Clinic Location' : 'Set Clinic Location'),
                   style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                 ),
                 const SizedBox(height: 2),
@@ -289,17 +298,18 @@ class _ClinicLocationTileState extends State<_ClinicLocationTile> {
             ),
           ),
           const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: _busy ? null : _onTap,
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          if (!isLocked)
+            ElevatedButton(
+              onPressed: _busy ? null : _onTap,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              ),
+              child: _busy
+                  ? const SizedBox(
+                      height: 16, width: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(hasLocation ? 'Update' : 'Use GPS'),
             ),
-            child: _busy
-                ? const SizedBox(
-                    height: 16, width: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text(hasLocation ? 'Update' : 'Use GPS'),
-          ),
         ],
       ),
     );

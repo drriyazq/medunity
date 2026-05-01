@@ -7,8 +7,9 @@ class ClinicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Clinic
         fields = ['id', 'name', 'address', 'city', 'state', 'pincode',
-                  'phone', 'landline_phone', 'website', 'lat', 'lng', 'location_set_at']
-        read_only_fields = ['id', 'location_set_at']
+                  'phone', 'landline_phone', 'website', 'lat', 'lng',
+                  'location_set_at', 'location_locked']
+        read_only_fields = ['id', 'location_set_at', 'location_locked']
 
 
 class MedicalProfessionalSerializer(serializers.ModelSerializer):
