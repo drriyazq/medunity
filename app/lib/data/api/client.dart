@@ -28,10 +28,9 @@ final dioProvider = Provider<Dio>((ref) {
       handler.next(options);
     },
     onError: (DioException e, handler) {
-      if (e.response?.statusCode == 401) {
-        // Phase 1: token refresh / logout logic added here
-        HiveSetup.sessionBox.delete('access_token');
-      }
+      // Don't proactively delete the token here — the auth provider decides
+      // whether a 401 means "log out" or "transient" based on context.
+      // Phase 1: token refresh logic added here.
       handler.next(e);
     },
   ));

@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -128,9 +129,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
         default:
           state = AuthState(status: AuthStatus.pendingVerification, clinicLocationSet: locationSet);
       }
-    } catch (_) {
-      // Token may be expired — treat as logged out
-      await logout();
+    } on DioException catch (e) {
+      // Only log out on a real auth failure. For network/server hiccups on
+      // cold start, keep the token and surface a "pending" UI so the user
+      // can retry without re-doing OTP.
+      if (e.response?.statusCode == 401) {
+        await logout();
+      } else {
+        debugPrint('[Auth] refreshVerificationStatus transient error: $e');
+        state = const AuthState(status: AuthStatus.pendingVerification);
+      }
+    } catch (e) {
+      debugPrint('[Auth] refreshVerificationStatus unexpected: $e');
+      state = const AuthState(status: AuthStatus.pendingVerification);
     }
   }
 
