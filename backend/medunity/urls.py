@@ -4,7 +4,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
+    # Mounted at /medunity-admin/ (not /admin/) so that admin-generated URLs
+    # match the public path under https://trusmiledentist.in/medunity-admin/
+    # and don't collide with the cross-project hub at trusmiledentist.in/admin/.
+    path("medunity-admin/", admin.site.urls),
     path("api/v1/", include("api.urls")),
     path("api/v1/auth/", include("accounts.urls")),
     path("api/v1/sos/", include("sos.urls")),

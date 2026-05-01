@@ -85,9 +85,17 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-STATIC_URL = "static/"
+STATIC_URL = "/medunity-static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+# Trusmile reverse-proxy serves /medunity-admin/ → :8009/admin/. Admin POST
+# (login, save, actions) sends a CSRF token; trusted origins must include the
+# public origin or Django returns 403.
+CSRF_TRUSTED_ORIGINS = [
+    "https://trusmiledentist.in",
+    "https://www.trusmiledentist.in",
+]
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"

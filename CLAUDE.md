@@ -49,15 +49,24 @@ VPS edits are committed and pushed; Windows pulls and builds. See `app/README.md
 
 ## Architecture
 
-### Auth flow (Firebase Phone Auth → JWT)
+### Auth flow — dual path (India vs non-India)
 
-1. Flutter calls `FirebaseAuth.verifyPhoneNumber()` → user enters OTP → gets a Firebase ID token.
-2. App POSTs `{id_token}` to `/api/v1/auth/firebase/`.
-3. Backend verifies via `firebase_admin.auth.verify_id_token`, looks up or creates a Django `User` with `username = "firebase_<uid>"`, returns a SimpleJWT access + refresh pair.
-4. Every subsequent request: `Authorization: Bearer <access>`. App stores tokens in encrypted Hive (`HiveSetup.sessionBox`) — backed by Android Keystore via flutter_secure_storage.
-5. **`IsAdminVerified` is the default permission** for all post-onboarding endpoints (`accounts/permissions.py`). A doctor cannot use any feature until an admin flips `MedicalProfessional.is_admin_verified=True`. The Flutter `AuthStatus` FSM (`loading → loggedOut → tokenIssued → pendingVerification → verified | rejected`) gates the UI.
+Firebase SMS does not reliably deliver to Indian carriers. The app branches on country code:
 
-**India testing constraint:** Firebase cannot send real SMS in India. Always use **test phone numbers** added in Firebase Console → Authentication → Sign-in method → Phone → Test phone numbers. The Flutter app sets `appVerificationDisabledForTesting=true` in `kDebugMode` so test numbers work without SHA-1 fingerprint registration. Production builds will need the real signing-cert SHA-1 in Firebase.
+**+91 (India) — WhatsApp OTP path:**
+1. Flutter calls `authProvider.notifier.sendWhatsappOtp(phone)` → `POST /auth/otp/send/` (204).
+2. Backend generates a 6-digit code, stores in Redis (`medunity:otp:<E164>`, 5-min TTL, 5-attempt cap via `accounts/otp.py`), sends via Meta Graph API using the `medunity_login_otp` auth template (`accounts/whatsapp.py`). Failed sends are logged in `OtpDeliveryLog`.
+3. Flutter calls `verifyWhatsappOtp(phone, code)` → `POST /auth/otp/verify/`. Backend looks up or creates `User(username="phone_<E164>")`, returns a SimpleJWT pair.
+
+**Non-India — Firebase fallback:**
+1. Flutter calls `FirebaseAuth.verifyPhoneNumber()` → user enters OTP → Firebase ID token.
+2. App POSTs `{id_token}` to `/auth/firebase/`. Backend calls `firebase_admin.auth.verify_id_token`, creates `User(username="firebase_<uid>")`, returns SimpleJWT pair.
+
+**Shared from here:**
+4. Every subsequent request: `Authorization: Bearer <access>`. Tokens stored in encrypted Hive (`HiveSetup.sessionBox`) via flutter_secure_storage.
+5. **`IsAdminVerified` is the default permission** for all post-onboarding endpoints (`accounts/permissions.py`). Doctor cannot use any feature until admin flips `MedicalProfessional.is_admin_verified=True`. Flutter `AuthStatus` FSM: `loading → loggedOut → tokenIssued → pendingVerification → verified | rejected`.
+
+**Dev test bypass:** `OTP_TEST_PHONES=+919867933139` and `OTP_TEST_CODE=123456` in `backend/.env`. Send returns 204 without contacting WhatsApp; verify accepts the hardcoded code. Leave both empty in production. WhatsApp creds (`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`) also live in `.env` — blank in dev, real values in prod.
 
 ### Backend apps and what they own
 
@@ -65,7 +74,7 @@ URL mount points are in `backend/medunity/urls.py`. Every app exposes its own `u
 
 | App | Owns | Notable models / endpoints |
 |---|---|---|
-| `accounts` | Auth, profile, clinic, FCM device tokens | `MedicalProfessional` (1:1 `User`), `Clinic` (1:1 `MedicalProfessional`), `DeviceToken` (M:N user). Endpoints: `/auth/firebase/`, `/auth/profile/` (multipart), `/auth/me/`, `/auth/me/clinic-location/`, `/auth/verification-status/`, `/auth/devices/{register,unregister}/` |
+| `accounts` | Auth, profile, clinic, FCM device tokens | `MedicalProfessional` (1:1 `User`), `Clinic` (1:1 `MedicalProfessional`), `DeviceToken`, `OtpDeliveryLog`. Endpoints: `/auth/otp/send/`, `/auth/otp/verify/` (WhatsApp path), `/auth/firebase/` (non-India fallback), `/auth/profile/` (multipart), `/auth/me/`, `/auth/me/clinic-location/`, `/auth/verification-status/`, `/auth/devices/{register,unregister}/` |
 | `sos` | Emergency dispatch | `SosAlert`, `SosResponse`. `find_nearby_clinics(lat, lng, exclude)` does auto-radius 1→2→5 km until ≥3 hits. **Sender-selected recipients:** `GET /sos/nearby-doctors/?lat=&lng=` lists candidates; `POST /sos/send/` accepts optional `recipient_ids[]` to filter the FCM fan-out. Throttle: 3 SOS / 24h per professional. |
 | `circles` | Local doctor groups | `Circle` (geo-anchored), `CircleMembership`, `CirclePost`, `PostComment`. Auto-suggest joins by haversine. |
 | `consultants` | Visiting consultant network | `ConsultantAvailability` (toggle on/off + lat/lng), `ConsultantBooking`, `ConsultantReview` (two-way) |
@@ -103,6 +112,6 @@ Riverpod `StateNotifier` + `go_router` shell route with 5 tabs (Home / Circles /
 
 - **Don't add Celery tasks unless you're prepared to run a worker.** Today the worker is intermittently absent in dev — synchronous code paths must not silently degrade if a task never executes.
 - **Don't bypass `IsAdminVerified`.** New endpoints default to it. If a feature must be reachable pre-verification (e.g. profile creation, location capture), explicitly opt out per-view.
-- **Don't store phone numbers on `User`.** The Django `User.username` is `firebase_<uid>` and `email` is `<uid>@medunity.firebase`. The phone number stays in Firebase only — pulling it server-side requires `firebase_admin.auth.get_user(uid).phone_number`.
+- **Two username conventions — don't mix them up.** Firebase path: `username="firebase_<uid>"`, `email="<uid>@medunity.firebase"`. WhatsApp OTP path: `username="phone_<E164>"`, `email="<E164-no-plus>@medunity.phone"`. All profile-lookup views use `MedicalProfessional.objects.get(user=request.user)` (OneToOne) — never look up by `firebase_uid` directly.
 - **Don't broadcast SOS without selection.** The recipient picker (`select_recipients_screen.dart` → `recipient_ids[]`) is the supported flow. The legacy "all nearby" path still works server-side for backward compat but the app should never send without `recipient_ids`.
 - **Don't introduce PostGIS.** Geo queries are intentionally raw-SQL Haversine over Python lists. The current dataset size makes this fine and keeps deploys simple.
