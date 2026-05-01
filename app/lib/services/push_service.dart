@@ -35,7 +35,9 @@ class PushService {
     if (token == null) return;
     HiveSetup.sessionBox.put('fcm_token', token);
     try {
-      await dio.post('/devices/register/', data: {
+      // Endpoint is mounted under /auth/ (accounts/urls.py is included at
+      // /api/v1/auth/, see medunity/urls.py).
+      await dio.post('/auth/devices/register/', data: {
         'token': token,
         'platform': 'android',
       });
