@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "equipment",
     "support",
     "vendors",
+    "associates",
 ]
 
 MIDDLEWARE = [

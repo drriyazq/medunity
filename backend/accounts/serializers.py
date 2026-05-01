@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Clinic, DeviceToken, MedicalProfessional
+from .models import Clinic, DeviceToken, MedicalProfessional, ROLE_CHOICES, VALID_ROLE_KEYS
 
 
 class ClinicSerializer(serializers.ModelSerializer):
@@ -18,12 +18,14 @@ class MedicalProfessionalSerializer(serializers.ModelSerializer):
     specialization_display = serializers.CharField(source='get_specialization_display', read_only=True)
     council_display = serializers.CharField(source='get_medical_council_display', read_only=True)
     role_display = serializers.CharField(source='get_role_display', read_only=True)
+    roles_display = serializers.SerializerMethodField()
 
     class Meta:
         model = MedicalProfessional
         fields = [
             'id', 'firebase_uid', 'phone', 'full_name', 'email',
-            'role', 'role_display', 'medical_council', 'council_display',
+            'role', 'role_display', 'roles', 'roles_display',
+            'medical_council', 'council_display',
             'license_number', 'specialization', 'specialization_display',
             'years_experience', 'qualification', 'about', 'profile_photo',
             'is_admin_verified', 'is_active_listing', 'verification_status',
@@ -36,12 +38,30 @@ class MedicalProfessionalSerializer(serializers.ModelSerializer):
             'rejection_reason', 'created_at', 'updated_at',
         ]
 
+    def get_roles_display(self, obj):
+        labels = dict(ROLE_CHOICES)
+        return [{'key': r, 'label': labels.get(r, r)} for r in (obj.roles or [])]
+
 
 class MedicalProfessionalUpdateSerializer(serializers.ModelSerializer):
     """Editable fields only — credentials (license, council) are read-only post-submit."""
     class Meta:
         model = MedicalProfessional
-        fields = ['about', 'profile_photo', 'years_experience', 'qualification', 'email']
+        fields = [
+            'about', 'profile_photo', 'years_experience',
+            'qualification', 'email', 'roles',
+        ]
+
+    def validate_roles(self, value):
+        if not isinstance(value, list):
+            raise serializers.ValidationError('roles must be a list.')
+        if not value:
+            raise serializers.ValidationError('At least one role is required.')
+        bad = [r for r in value if r not in VALID_ROLE_KEYS]
+        if bad:
+            raise serializers.ValidationError(f'Unknown role keys: {bad}')
+        # Dedupe while preserving order
+        return list(dict.fromkeys(value))
 
 
 class DeviceTokenSerializer(serializers.ModelSerializer):
