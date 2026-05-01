@@ -62,6 +62,6 @@ Future<bool> setClinicLocationFromGps(BuildContext context, WidgetRef ref) async
   }
 
   await ref.read(authProvider.notifier).refreshVerificationStatus();
-  snack('Clinic location saved.');
+  snack('This location has been saved as your clinic location.');
   return true;
 }

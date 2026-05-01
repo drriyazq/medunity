@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'data/local/hive_setup.dart';
+import 'services/push_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
@@ -22,5 +23,8 @@ Future<void> main() async {
   // debug fingerprint or a test number added in Firebase Console.
   await HiveSetup.init();
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
+  // Foreground/background FCM handlers, notification channels, permission ask.
+  // Token registration happens after login (auth_provider._onJwtIssued).
+  await PushService.init();
   runApp(const ProviderScope(child: MedUnityApp()));
 }

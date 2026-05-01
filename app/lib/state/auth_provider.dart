@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/api/client.dart';
 import '../data/local/hive_setup.dart';
+import '../services/push_service.dart';
 
 enum AuthStatus {
   loading,
@@ -52,7 +53,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = const AuthState(status: AuthStatus.loggedOut);
       return;
     }
-    // Token exists — check verification status
+    // Re-register FCM token on every cold start — token may have rotated and
+    // /devices/register/ is idempotent (upsert keyed on (user, token)).
+    final dio = _ref.read(dioProvider);
+    PushService.registerCurrentDevice(dio); // fire-and-forget
     await refreshVerificationStatus();
   }
 
@@ -100,6 +104,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (data['uid'] != null) {
       HiveSetup.sessionBox.put('verified_phone', data['uid']);
     }
+    // Register FCM device token now that we have a JWT — /devices/register/
+    // requires authentication. Without this the user receives no push (incl. SOS).
+    final dio = _ref.read(dioProvider);
+    await PushService.registerCurrentDevice(dio);
     if (data['profile_exists'] == true) {
       await refreshVerificationStatus();
     } else {

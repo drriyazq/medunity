@@ -2,14 +2,41 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../state/auth_provider.dart';
 import '../../theme.dart';
+import '../profile/set_clinic_location.dart';
 import '../support/support_provider.dart';
 
-class HomeScreen extends ConsumerWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends ConsumerState<HomeScreen> {
+  bool _locationPromptTriggered = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeAskForLocation());
+  }
+
+  Future<void> _maybeAskForLocation() async {
+    if (_locationPromptTriggered) return;
+    final auth = ref.read(authProvider);
+    if (auth.status != AuthStatus.verified) return;
+    if (auth.clinicLocationSet) return;
+    _locationPromptTriggered = true;
+    if (!mounted) return;
+    // setClinicLocationFromGps handles permissions, GPS read, POST, and the
+    // success snackbar ("Clinic location saved.").
+    await setClinicLocationFromGps(context, ref);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('MedUnity'),
