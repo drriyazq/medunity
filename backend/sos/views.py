@@ -378,14 +378,23 @@ def received_alerts(request):
 @api_view(['GET'])
 @permission_classes([IsAdminVerified])
 def incoming_sos(request, pk):
-    """Returns a single incoming SOS alert detail for the recipient."""
+    """Returns a single incoming SOS alert detail for the recipient.
+
+    Sender's name + phone + clinic info are included so the recipient
+    can call them directly from the incoming screen (helpful both for
+    active alerts and for a record they already responded to).
+    """
     try:
-        alert = SosAlert.objects.get(pk=pk)
+        alert = SosAlert.objects.select_related(
+            'sender', 'sender__user', 'sender__clinic'
+        ).get(pk=pk)
     except SosAlert.DoesNotExist:
         return Response({'detail': 'SOS alert not found.'}, status=status.HTTP_404_NOT_FOUND)
 
     prof = request.user.professional
     existing_response = SosResponse.objects.filter(alert=alert, responder=prof).first()
+    sender = alert.sender
+    sender_clinic = getattr(sender, 'clinic', None)
 
     return Response({
         'alert_id': alert.pk,
@@ -394,6 +403,14 @@ def incoming_sos(request, pk):
         'is_active': alert.is_active,
         'sender_lat': float(alert.lat),
         'sender_lng': float(alert.lng),
+        'sender_name': sender.full_name,
+        'sender_phone': sender.phone,
+        'sender_specialization_display': sender.get_specialization_display(),
+        'sender_clinic_name': sender_clinic.name if sender_clinic else '',
+        'sender_clinic_address': sender_clinic.address if sender_clinic else '',
+        'sender_clinic_city': sender_clinic.city if sender_clinic else '',
         'created_at': alert.created_at,
+        'expires_at': alert.expires_at,
         'my_response': existing_response.status if existing_response else None,
+        'my_responded_at': existing_response.responded_at if existing_response else None,
     })

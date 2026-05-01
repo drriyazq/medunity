@@ -226,16 +226,36 @@ class _ResponderCard extends StatelessWidget {
   final Map<String, dynamic> r;
   const _ResponderCard({required this.r});
 
-  Future<void> _call(String phone) async {
-    final uri = Uri.parse('tel:$phone');
-    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  Future<void> _call(BuildContext context, String phone) async {
+    // Don't gate behind canLaunchUrl — on Android 11+ it returns false
+    // unless AndroidManifest has a <queries> block for the tel scheme,
+    // which we can't ship from this repo (android/ is generated on
+    // Windows). The dialer always exists, so just launch.
+    try {
+      await launchUrl(Uri.parse('tel:$phone'),
+          mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open dialer for $phone')),
+        );
+      }
+    }
   }
 
-  Future<void> _openInMaps(double lat, double lng, String label) async {
-    final uri = Uri.parse(
-        'https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Future<void> _openInMaps(BuildContext context, double lat, double lng) async {
+    try {
+      await launchUrl(
+        Uri.parse(
+            'https://www.google.com/maps/search/?api=1&query=$lat,$lng'),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open Maps')),
+        );
+      }
     }
   }
 
@@ -308,7 +328,7 @@ class _ResponderCard extends StatelessWidget {
               if (phone.isNotEmpty)
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _call(phone),
+                    onPressed: () => _call(context, phone),
                     icon: const Icon(Icons.call, size: 16),
                     label: const Text('Call'),
                     style: OutlinedButton.styleFrom(
@@ -335,7 +355,7 @@ class _ResponderCard extends StatelessWidget {
               if (lat != null && lng != null)
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: () => _openInMaps(lat, lng, name),
+                    onPressed: () => _openInMaps(context, lat, lng),
                     icon: const Icon(Icons.directions, size: 16),
                     label: const Text('Directions'),
                     style: OutlinedButton.styleFrom(

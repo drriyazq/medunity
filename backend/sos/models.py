@@ -110,19 +110,36 @@ def haversine_km(lat1, lng1, lat2, lng2) -> float:
     return R * 2 * math.asin(math.sqrt(a))
 
 
+SOS_NEARBY_RADIUS_KM = 2.0
+SOS_NEARBY_MAX = 10
+
+
 def find_nearby_clinics(lat, lng, exclude_prof_id):
-    """
-    Auto-expand 1 → 2 → 5 km until ≥ 3 recipients found.
-    Returns (clinic_list, radius_used_km).
+    """Returns up to SOS_NEARBY_MAX clinics within SOS_NEARBY_RADIUS_KM, sorted by distance.
+
+    UX rule: show the 10 nearest doctors. If fewer than 10 exist within
+    a 2 km radius, just return whatever's within 2 km. The caller gets
+    (clinics, radius_used_km) where radius_used_km is the actual radius
+    boundary applied (always SOS_NEARBY_RADIUS_KM with this implementation).
     """
     from accounts.models import Clinic
     all_clinics = list(
-        Clinic.objects.filter(lat__isnull=False, lng__isnull=False)
+        Clinic.objects.filter(
+            lat__isnull=False,
+            lng__isnull=False,
+            owner__is_admin_verified=True,
+            owner__is_active_listing=True,
+        )
         .exclude(owner_id=exclude_prof_id)
         .select_related('owner__user')
     )
-    for radius in [1, 2, 5]:
-        within = [c for c in all_clinics if haversine_km(lat, lng, c.lat, c.lng) <= radius]
-        if len(within) >= 3:
-            return within, radius
-    return [c for c in all_clinics if haversine_km(lat, lng, c.lat, c.lng) <= 5], 5
+    with_distance = [
+        (haversine_km(lat, lng, c.lat, c.lng), c)
+        for c in all_clinics
+    ]
+    within = sorted(
+        [(d, c) for (d, c) in with_distance if d <= SOS_NEARBY_RADIUS_KM],
+        key=lambda x: x[0],
+    )
+    nearest = [c for _, c in within[:SOS_NEARBY_MAX]]
+    return nearest, SOS_NEARBY_RADIUS_KM
