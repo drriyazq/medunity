@@ -99,13 +99,15 @@ class SosStatusNotifier extends StateNotifier<AsyncValue<Map<String, dynamic>>> 
   }
 
   Future<void> load() async {
-    state = const AsyncValue.loading();
     final dio = _ref.read(dioProvider);
     try {
       final resp = await dio.get('/sos/$alertId/status/');
       state = AsyncValue.data(Map<String, dynamic>.from(resp.data as Map));
     } catch (e, st) {
-      state = AsyncValue.error(e, st);
+      // Keep last good data on poll failures so the UI doesn't flicker.
+      if (state is! AsyncData) {
+        state = AsyncValue.error(e, st);
+      }
     }
   }
 }
@@ -136,6 +138,16 @@ final nearbyDoctorsProvider = FutureProvider.autoDispose
     'lng': args.lng,
   });
   return Map<String, dynamic>.from(resp.data as Map);
+});
+
+// ── My alerts (dashboard) ─────────────────────────────────────────────────────
+
+final myAlertsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final resp = await dio.get('/sos/my-alerts/');
+  final list = (resp.data['alerts'] as List? ?? []);
+  return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
 });
 
 // ── Incoming SOS ──────────────────────────────────────────────────────────────

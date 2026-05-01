@@ -15,6 +15,13 @@ NavigateFn? _navigate;
 
 void setPushNavigate(NavigateFn fn) => _navigate = fn;
 
+// Called when a 'sos_response' FCM arrives — host wires this up to invalidate
+// the sosStatusProvider for the given alertId so an open status screen refreshes.
+typedef SosResponseFn = void Function(int alertId);
+SosResponseFn? _onSosResponse;
+
+void setPushOnSosResponse(SosResponseFn fn) => _onSosResponse = fn;
+
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
 
@@ -87,6 +94,13 @@ class PushService {
         _showSosNotification(message);
         return;
       }
+      if (type == 'sos_response') {
+        _showSosResponseNotification(message);
+        final alertIdStr = message.data['alert_id'] as String?;
+        final alertId = int.tryParse(alertIdStr ?? '');
+        if (alertId != null) _onSosResponse?.call(alertId);
+        return;
+      }
       _localNotifications.show(
         message.hashCode,
         message.notification?.title,
@@ -115,6 +129,31 @@ class PushService {
 
   static void _onTokenRefresh(String token) {
     HiveSetup.sessionBox.put('fcm_token', token);
+  }
+
+  static Future<void> _showSosResponseNotification(RemoteMessage message) async {
+    final alertId = message.data['alert_id'] ?? '';
+    final deepLink = message.data['deep_link'] ?? '/sos/status/$alertId';
+    final title = message.notification?.title ?? 'Someone is on their way';
+    final body = message.notification?.body ?? 'A doctor accepted your SOS.';
+
+    await _localNotifications.show(
+      message.hashCode,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          'sos_critical',
+          'SOS Alerts',
+          importance: Importance.max,
+          priority: Priority.high,
+          playSound: true,
+          enableVibration: true,
+          color: const Color(0xFF2E7D32),
+        ),
+      ),
+      payload: deepLink,
+    );
   }
 
   static Future<void> _showSosNotification(RemoteMessage message) async {

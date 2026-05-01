@@ -136,6 +136,11 @@ class _ProfileBody extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           const SizedBox(height: 10),
           _QuickLink(
+            icon: Icons.sos_outlined,
+            label: 'My SOS Alerts',
+            onTap: () => context.push('/sos/dashboard'),
+          ),
+          _QuickLink(
             icon: Icons.handshake_outlined,
             label: 'My Coverage Requests',
             onTap: () => context.push('/support'),

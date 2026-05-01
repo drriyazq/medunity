@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme.dart';
 import 'sos_provider.dart';
@@ -64,9 +66,12 @@ class _SosStatusScreenState extends ConsumerState<SosStatusScreen> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+        child: RefreshIndicator(
+          color: MedUnityColors.sos,
+          onRefresh: () =>
+              ref.read(sosStatusProvider(widget.alertId).notifier).load(),
+          child: ListView(
+            padding: const EdgeInsets.all(24),
             children: [
               // Sent confirmation banner
               Container(
@@ -103,7 +108,7 @@ class _SosStatusScreenState extends ConsumerState<SosStatusScreen> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
               // Response count
               statusAsync.when(
@@ -114,10 +119,54 @@ class _SosStatusScreenState extends ConsumerState<SosStatusScreen> {
                   loading: false,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
 
-              // Map with responder dots
-              Expanded(
+              // Responder cards
+              statusAsync.when(
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => Text(
+                    'Could not load responders.',
+                    style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+                data: (data) {
+                  final responders =
+                      (data['responders'] as List? ?? const []).cast<Map>();
+                  if (responders.isEmpty) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.04),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.hourglass_top,
+                              color: Colors.grey[500], size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'No one has accepted yet. Auto-refreshes every 15 seconds — pull down to refresh now.',
+                              style: TextStyle(
+                                  color: Colors.grey[400], fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return Column(
+                    children: [
+                      for (final r in responders)
+                        _ResponderCard(
+                            r: Map<String, dynamic>.from(r as Map)),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+
+              // Map showing sender (red) + responders (green)
+              SizedBox(
+                height: 240,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
                   child: statusAsync.when(
@@ -127,20 +176,29 @@ class _SosStatusScreenState extends ConsumerState<SosStatusScreen> {
                         child: Text('Could not load map.',
                             style: TextStyle(color: Colors.grey[400]))),
                     data: (data) {
+                      final senderLat =
+                          (data['sender_lat'] as num?)?.toDouble();
+                      final senderLng =
+                          (data['sender_lng'] as num?)?.toDouble();
                       final dots = (data['responder_dots'] as List? ?? [])
                           .map((d) => LatLng(
                                 (d['lat'] as num).toDouble(),
                                 (d['lng'] as num).toDouble(),
                               ))
                           .toList();
-                      return _ResponderMap(dots: dots);
+                      return _ResponderMap(
+                        sender: senderLat != null && senderLng != null
+                            ? LatLng(senderLat, senderLng)
+                            : null,
+                        dots: dots,
+                      );
                     },
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
-                'Refreshing every 15 seconds • Alert expires in 2 hours',
+                'Refreshes every 15 seconds • Alert expires in 2 hours',
                 style: TextStyle(color: Colors.grey[600], fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -200,12 +258,13 @@ class _ResponseCountCard extends StatelessWidget {
 }
 
 class _ResponderMap extends StatelessWidget {
+  final LatLng? sender;
   final List<LatLng> dots;
-  const _ResponderMap({required this.dots});
+  const _ResponderMap({required this.sender, required this.dots});
 
   @override
   Widget build(BuildContext context) {
-    if (dots.isEmpty) {
+    if (sender == null && dots.isEmpty) {
       return Container(
         color: Colors.grey[900],
         child: Center(
@@ -222,27 +281,170 @@ class _ResponderMap extends StatelessWidget {
       );
     }
 
+    final allPoints = <LatLng>[
+      if (sender != null) sender!,
+      ...dots,
+    ];
     final center = LatLng(
-      dots.map((d) => d.latitude).reduce((a, b) => a + b) / dots.length,
-      dots.map((d) => d.longitude).reduce((a, b) => a + b) / dots.length,
+      allPoints.map((p) => p.latitude).reduce((a, b) => a + b) / allPoints.length,
+      allPoints.map((p) => p.longitude).reduce((a, b) => a + b) / allPoints.length,
     );
 
+    final markers = <Marker>{
+      if (sender != null)
+        Marker(
+          markerId: const MarkerId('sender'),
+          position: sender!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+          infoWindow: const InfoWindow(title: 'You (SOS sender)'),
+        ),
+      ...dots.asMap().entries.map((e) => Marker(
+            markerId: MarkerId('dot_${e.key}'),
+            position: e.value,
+            icon: BitmapDescriptor.defaultMarkerWithHue(
+                BitmapDescriptor.hueGreen),
+            infoWindow: const InfoWindow(title: 'Responder'),
+          )),
+    };
+
     return GoogleMap(
-      initialCameraPosition: CameraPosition(target: center, zoom: 13),
-      markers: dots
-          .asMap()
-          .entries
-          .map((e) => Marker(
-                markerId: MarkerId('dot_${e.key}'),
-                position: e.value,
-                icon: BitmapDescriptor.defaultMarkerWithHue(
-                    BitmapDescriptor.hueGreen),
-                infoWindow: const InfoWindow(title: 'Responder'),
-              ))
-          .toSet(),
+      initialCameraPosition: CameraPosition(target: center, zoom: 14),
+      markers: markers,
       myLocationEnabled: false,
       zoomControlsEnabled: false,
       mapType: MapType.normal,
+    );
+  }
+}
+
+class _ResponderCard extends StatelessWidget {
+  final Map<String, dynamic> r;
+  const _ResponderCard({required this.r});
+
+  Future<void> _call(String phone) async {
+    final uri = Uri.parse('tel:$phone');
+    if (await canLaunchUrl(uri)) await launchUrl(uri);
+  }
+
+  Future<void> _openInMaps(double lat, double lng, String label) async {
+    final uri = Uri.parse(
+        'https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final name = (r['full_name'] as String?) ?? 'Doctor';
+    final spec = (r['specialization_display'] as String?) ?? '';
+    final clinic = (r['clinic_name'] as String?) ?? '';
+    final phone = (r['phone'] as String?) ?? '';
+    final dist = (r['distance_km'] as num?)?.toDouble();
+    final lat = (r['lat'] as num?)?.toDouble();
+    final lng = (r['lng'] as num?)?.toDouble();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.greenAccent.withOpacity(0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.directions_run,
+                  color: Colors.greenAccent, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  name,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
+              ),
+              if (dist != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.greenAccent.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${dist.toStringAsFixed(2)} km',
+                    style: const TextStyle(
+                        color: Colors.greenAccent, fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+          if (spec.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4, left: 32),
+              child: Text(spec,
+                  style: TextStyle(color: Colors.grey[400], fontSize: 13)),
+            ),
+          if (clinic.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, left: 32),
+              child: Text(clinic,
+                  style: TextStyle(color: Colors.grey[500], fontSize: 12)),
+            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              if (phone.isNotEmpty)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _call(phone),
+                    icon: const Icon(Icons.call, size: 16),
+                    label: const Text('Call'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.greenAccent,
+                      side: BorderSide(color: Colors.greenAccent.withOpacity(0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+              if (phone.isNotEmpty) const SizedBox(width: 8),
+              if (phone.isNotEmpty)
+                IconButton(
+                  tooltip: 'Copy number',
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: phone));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text('Copied $phone'),
+                          duration: const Duration(seconds: 1)),
+                    );
+                  },
+                  icon: const Icon(Icons.copy, size: 16, color: Colors.white54),
+                ),
+              if (lat != null && lng != null)
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => _openInMaps(lat, lng, name),
+                    icon: const Icon(Icons.directions, size: 16),
+                    label: const Text('Directions'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.lightBlueAccent,
+                      side: BorderSide(
+                          color: Colors.lightBlueAccent.withOpacity(0.5)),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }

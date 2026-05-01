@@ -28,6 +28,8 @@ import 'features/onboarding/profile_setup_screen.dart';
 import 'features/sos/incoming_sos_screen.dart';
 import 'features/sos/select_recipients_screen.dart';
 import 'features/sos/sos_countdown_screen.dart';
+import 'features/sos/sos_dashboard_screen.dart';
+import 'features/sos/sos_provider.dart';
 import 'features/sos/sos_status_screen.dart';
 import 'services/push_service.dart';
 import 'state/auth_provider.dart';
@@ -196,6 +198,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           return IncomingSosScreen(alertId: alertId);
         },
       ),
+      GoRoute(
+        path: '/sos/dashboard',
+        builder: (_, __) => const SosDashboardScreen(),
+      ),
 
       // ── Home shell ──────────────────────────────────────────────────────────
       ShellRoute(
@@ -229,6 +235,11 @@ class MedUnityApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     setPushNavigate((path) => router.push(path));
+    setPushOnSosResponse((alertId) {
+      // Force refresh of an open status screen + dashboard.
+      ref.invalidate(sosStatusProvider(alertId));
+      ref.invalidate(myAlertsProvider);
+    });
     return MaterialApp.router(
       title: 'MedUnity',
       theme: MedUnityTheme.light(),

@@ -225,8 +225,9 @@ def respond_to_sos(request, pk):
 @permission_classes([IsAdminVerified])
 def sos_status(request, pk):
     """
-    Returns accepted response count + list of {lat, lng} map dots only.
-    No names, no IDs of responders.
+    Returns accepted responder details for the alert sender.
+    Names + clinic are included because a responder accepting to physically
+    come help is implicitly de-anonymising themselves to the sender.
     """
     try:
         alert = SosAlert.objects.get(pk=pk)
@@ -237,12 +238,37 @@ def sos_status(request, pk):
     if alert.sender_id != prof.id:
         return Response({'detail': 'Forbidden.'}, status=status.HTTP_403_FORBIDDEN)
 
-    accepted = alert.responses.filter(status='accepted')
-    dots = [
-        {'lat': float(r.responder_lat), 'lng': float(r.responder_lng)}
-        for r in accepted
-        if r.responder_lat is not None and r.responder_lng is not None
-    ]
+    accepted = (
+        alert.responses.filter(status='accepted')
+        .select_related('responder__user', 'responder__clinic')
+        .order_by('responded_at')
+    )
+    sender_lat, sender_lng = float(alert.lat), float(alert.lng)
+
+    responders = []
+    dots = []
+    for r in accepted:
+        responder = r.responder
+        clinic = getattr(responder, 'clinic', None)
+        r_lat = float(r.responder_lat) if r.responder_lat is not None else None
+        r_lng = float(r.responder_lng) if r.responder_lng is not None else None
+        distance_km = None
+        if r_lat is not None and r_lng is not None:
+            distance_km = round(haversine_km(sender_lat, sender_lng, r_lat, r_lng), 2)
+            dots.append({'lat': r_lat, 'lng': r_lng})
+        responders.append({
+            'response_id': r.pk,
+            'professional_id': responder.id,
+            'full_name': responder.full_name,
+            'specialization_display': responder.get_specialization_display(),
+            'phone': responder.phone,
+            'clinic_name': clinic.name if clinic else '',
+            'clinic_address': clinic.address if clinic else '',
+            'lat': r_lat,
+            'lng': r_lng,
+            'distance_km': distance_km,
+            'accepted_at': r.responded_at,
+        })
 
     return Response({
         'alert_id': alert.pk,
@@ -250,10 +276,47 @@ def sos_status(request, pk):
         'is_active': alert.is_active,
         'category': alert.category,
         'category_display': alert.get_category_display(),
-        'accepted_count': accepted.count(),
-        'responder_dots': dots,
+        'accepted_count': len(responders),
+        'recipient_count': alert.recipient_count,
+        'responders': responders,
+        'responder_dots': dots,  # kept for backward compat with older app builds
+        'sender_lat': sender_lat,
+        'sender_lng': sender_lng,
+        'created_at': alert.created_at,
         'expires_at': alert.expires_at,
     })
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminVerified])
+def my_alerts(request):
+    """List the authenticated sender's SOS alerts (newest first, last 30 days)."""
+    prof = request.user.professional
+    cutoff = timezone.now() - timedelta(days=30)
+    alerts = (
+        SosAlert.objects
+        .filter(sender=prof, created_at__gte=cutoff)
+        .prefetch_related('responses')
+        .order_by('-created_at')
+    )
+    items = []
+    for a in alerts:
+        accepted_count = sum(1 for r in a.responses.all() if r.status == 'accepted')
+        items.append({
+            'alert_id': a.pk,
+            'category': a.category,
+            'category_display': a.get_category_display(),
+            'is_active': a.is_active,
+            'status': a.status,
+            'recipient_count': a.recipient_count,
+            'accepted_count': accepted_count,
+            'radius_km': a.radius_km,
+            'lat': float(a.lat),
+            'lng': float(a.lng),
+            'created_at': a.created_at,
+            'expires_at': a.expires_at,
+        })
+    return Response({'alerts': items})
 
 
 @api_view(['GET'])
