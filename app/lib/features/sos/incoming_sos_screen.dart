@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme.dart';
 import 'sos_provider.dart';
@@ -152,36 +152,63 @@ class _IncomingSosScreenState extends ConsumerState<IncomingSosScreen>
                 ),
                 const SizedBox(height: 20),
 
-                // Map showing sender location dot
+                // Sender location card with "Open in Maps" button
                 if (senderLat != null && senderLng != null)
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(16),
-                        child: GoogleMap(
-                          initialCameraPosition: CameraPosition(
-                            target: LatLng(senderLat, senderLng),
-                            zoom: 14,
-                          ),
-                          markers: {
-                            Marker(
-                              markerId: const MarkerId('sender'),
-                              position: LatLng(senderLat, senderLng),
-                              icon: BitmapDescriptor.defaultMarkerWithHue(
-                                  BitmapDescriptor.hueRed),
-                              infoWindow: const InfoWindow(title: 'SOS Location'),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on,
+                              color: MedUnityColors.sos, size: 28),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'SOS Location',
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  '${senderLat.toStringAsFixed(5)}, ${senderLng.toStringAsFixed(5)}',
+                                  style: TextStyle(
+                                      color: Colors.grey[400], fontSize: 12),
+                                ),
+                              ],
                             ),
-                          },
-                          myLocationEnabled: true,
-                          zoomControlsEnabled: false,
-                          mapType: MapType.normal,
-                        ),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () async {
+                              final uri = Uri.parse(
+                                  'https://www.google.com/maps/search/?api=1&query=$senderLat,$senderLng');
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri,
+                                    mode: LaunchMode.externalApplication);
+                              }
+                            },
+                            icon: const Icon(Icons.directions, size: 16),
+                            label: const Text('Open in Maps'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.lightBlueAccent,
+                              side: BorderSide(
+                                  color: Colors.lightBlueAccent.withOpacity(0.5)),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  )
-                else
-                  const Spacer(),
+                  ),
+                const Spacer(),
 
                 const SizedBox(height: 24),
 
