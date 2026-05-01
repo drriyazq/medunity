@@ -124,6 +124,21 @@ FIREBASE_CREDENTIALS_PATH = env(
 
 REDIS_URL = env("REDIS_URL", default="redis://localhost:6379/2")
 
+# WhatsApp Cloud API — used for OTP delivery to +91 phones (Firebase SMS is unreliable in India).
+# Empty defaults so dev boots without these set; send_otp will return a clear error if missing.
+WHATSAPP_ACCESS_TOKEN = env("WHATSAPP_ACCESS_TOKEN", default="")
+WHATSAPP_PHONE_NUMBER_ID = env("WHATSAPP_PHONE_NUMBER_ID", default="")
+WHATSAPP_OTP_TEMPLATE_NAME = env("WHATSAPP_OTP_TEMPLATE_NAME", default="medunity_login_otp")
+WHATSAPP_OTP_LANG = env("WHATSAPP_OTP_LANG", default="en")
+
+# OTP behaviour
+OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=300)
+OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
+# Test bypass — leave empty in production. When phone is in this list and code matches OTP_TEST_CODE,
+# verify_otp_view skips the Redis lookup and the WhatsApp send is skipped on send_otp_view.
+OTP_TEST_PHONES = env.list("OTP_TEST_PHONES", default=[])
+OTP_TEST_CODE = env("OTP_TEST_CODE", default="")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

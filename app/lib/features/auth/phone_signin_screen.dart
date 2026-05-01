@@ -30,6 +30,8 @@ class _PhoneSignInScreenState extends ConsumerState<PhoneSignInScreen> {
     super.dispose();
   }
 
+  bool get _isIndianPhone => _phoneCtrl.text.trim().startsWith('+91');
+
   Future<void> _sendOtp() async {
     final phone = _phoneCtrl.text.trim();
     if (!phone.startsWith('+') || phone.length < 10) {
@@ -38,12 +40,50 @@ class _PhoneSignInScreenState extends ConsumerState<PhoneSignInScreen> {
     }
     setState(() { _loading = true; _error = null; });
 
+    if (_isIndianPhone) {
+      await _sendWhatsappOtp(phone);
+    } else {
+      await _sendFirebaseOtp(phone);
+    }
+  }
+
+  // ── WhatsApp OTP path (+91) ──────────────────────────────────────────────
+
+  Future<void> _sendWhatsappOtp(String phone) async {
+    try {
+      await ref.read(authProvider.notifier).sendWhatsappOtp(phone);
+      setState(() { _loading = false; _otpSent = true; });
+    } catch (e) {
+      debugPrint('[SignIn] sendWhatsappOtp error: $e');
+      setState(() { _loading = false; _error = 'Could not send OTP. Please try again.'; });
+    }
+  }
+
+  Future<void> _verifyWhatsappOtp() async {
+    final phone = _phoneCtrl.text.trim();
+    final otp = _otpCtrl.text.trim();
+    if (otp.length != 6) {
+      setState(() => _error = 'Enter the 6-digit OTP');
+      return;
+    }
+    setState(() { _loading = true; _error = null; });
+    try {
+      await ref.read(authProvider.notifier).verifyWhatsappOtp(phone, otp);
+    } catch (e) {
+      debugPrint('[SignIn] verifyWhatsappOtp error: $e');
+      final msg = e.toString().contains('400') ? 'Incorrect or expired code.' : 'Verification failed. Try again.';
+      setState(() { _loading = false; _error = msg; });
+    }
+  }
+
+  // ── Firebase OTP path (non-India fallback) ───────────────────────────────
+
+  Future<void> _sendFirebaseOtp(String phone) async {
     await FirebaseAuth.instance.verifyPhoneNumber(
       phoneNumber: phone,
       timeout: const Duration(seconds: 60),
       verificationCompleted: (credential) async {
-        // Auto-verification (Android only)
-        await _signInWithCredential(credential);
+        await _signInWithFirebaseCredential(credential);
       },
       verificationFailed: (e) {
         setState(() { _loading = false; _error = 'Verification failed: ${e.message}'; });
@@ -59,7 +99,7 @@ class _PhoneSignInScreenState extends ConsumerState<PhoneSignInScreen> {
     );
   }
 
-  Future<void> _verifyOtp() async {
+  Future<void> _verifyFirebaseOtp() async {
     if (_verificationId == null) return;
     final otp = _otpCtrl.text.trim();
     if (otp.length != 6) {
@@ -71,24 +111,30 @@ class _PhoneSignInScreenState extends ConsumerState<PhoneSignInScreen> {
       verificationId: _verificationId!,
       smsCode: otp,
     );
-    await _signInWithCredential(credential);
+    await _signInWithFirebaseCredential(credential);
   }
 
-  Future<void> _signInWithCredential(PhoneAuthCredential credential) async {
-    debugPrint('[SignIn] _signInWithCredential called');
+  Future<void> _signInWithFirebaseCredential(PhoneAuthCredential credential) async {
+    debugPrint('[SignIn] _signInWithFirebaseCredential called');
     try {
-      debugPrint('[SignIn] calling signInWithCredential...');
       final result = await FirebaseAuth.instance.signInWithCredential(credential);
-      debugPrint('[SignIn] got user: ${result.user?.uid}');
       final idToken = await result.user?.getIdToken();
-      debugPrint('[SignIn] got idToken: ${idToken?.length} chars');
       if (idToken == null) throw Exception('No ID token');
       await ref.read(authProvider.notifier).onFirebaseTokenReceived(idToken);
-      debugPrint('[SignIn] onFirebaseTokenReceived returned');
     } catch (e, st) {
-      debugPrint('[SignIn] ERROR: $e');
+      debugPrint('[SignIn] Firebase ERROR: $e');
       debugPrint('[SignIn] Stack: $st');
       setState(() { _loading = false; _error = 'Sign-in failed: $e'; });
+    }
+  }
+
+  // ── Dispatch ─────────────────────────────────────────────────────────────
+
+  Future<void> _verifyOtp() async {
+    if (_isIndianPhone) {
+      await _verifyWhatsappOtp();
+    } else {
+      await _verifyFirebaseOtp();
     }
   }
 
@@ -107,7 +153,9 @@ class _PhoneSignInScreenState extends ConsumerState<PhoneSignInScreen> {
               )),
               const SizedBox(height: 8),
               Text(
-                _otpSent ? 'Enter the OTP sent to ${_phoneCtrl.text}' : 'Enter your phone number to receive an OTP.',
+                _otpSent
+                    ? 'Enter the OTP sent to ${_phoneCtrl.text}${_isIndianPhone ? ' via WhatsApp' : ''}'
+                    : 'Enter your phone number to receive an OTP.',
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: MedUnityColors.textSecondary),
               ),
               const SizedBox(height: 32),

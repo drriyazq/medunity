@@ -16,14 +16,10 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  if (kDebugMode) {
-    // Bypasses reCAPTCHA/Play Integrity check so Firebase test numbers work
-    // without the SHA-1 debug fingerprint being registered in Firebase Console.
-    // Remove this block before release build.
-    await FirebaseAuth.instance.setSettings(
-      appVerificationDisabledForTesting: true,
-    );
-  }
+  // appVerificationDisabledForTesting removed — Indian +91 phones now use the
+  // WhatsApp OTP path (backend), not Firebase Phone Auth. Firebase is retained
+  // only for non-India phones. Non-India debug testing still needs the SHA-1
+  // debug fingerprint or a test number added in Firebase Console.
   await HiveSetup.init();
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
   runApp(const ProviderScope(child: MedUnityApp()));

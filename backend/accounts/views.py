@@ -1,5 +1,6 @@
 import logging
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework import permissions, status
@@ -8,7 +9,9 @@ from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import Clinic, DeviceToken, MedicalProfessional
+from . import otp as otp_store
+from . import whatsapp as wa
+from .models import Clinic, DeviceToken, MedicalProfessional, OtpDeliveryLog
 from .serializers import (
     ClinicSerializer,
     DeviceTokenSerializer,
@@ -60,11 +63,7 @@ def firebase_auth_view(request):
         defaults={"email": f"{uid}@medunity.firebase"},
     )
 
-    profile_exists = MedicalProfessional.objects.filter(firebase_uid=uid).exists()
-
-    if created or (profile_exists and phone):
-        # Refresh phone in case it changed (Firebase phone auth)
-        pass
+    profile_exists = MedicalProfessional.objects.filter(user=user).exists()
 
     refresh = RefreshToken.for_user(user)
     return Response({
@@ -75,17 +74,131 @@ def firebase_auth_view(request):
     })
 
 
+# ── WhatsApp OTP auth (India) ─────────────────────────────────────────────────
+
+
+def _normalize_e164(raw: str) -> str:
+    """Normalise to leading-+ E.164 (e.g. '+919867933139'). Returns '' if invalid."""
+    if not raw:
+        return ""
+    s = raw.strip().replace(" ", "").replace("-", "").replace("(", "").replace(")", "")
+    if s.startswith("00"):
+        s = "+" + s[2:]
+    if not s.startswith("+"):
+        # Bare 10-digit Indian number → assume +91
+        if s.isdigit() and len(s) == 10:
+            s = "+91" + s
+        else:
+            s = "+" + s
+    digits = s[1:]
+    if not digits.isdigit() or not (8 <= len(digits) <= 15):
+        return ""
+    return s
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def send_otp_view(request):
+    """Generate a 6-digit OTP and send it via WhatsApp template.
+
+    Body: {"phone": "+919867933139"}
+    Returns 204 on success (no body — never echo the code).
+    Test bypass: phones in settings.OTP_TEST_PHONES skip the WhatsApp send entirely.
+    """
+    phone = _normalize_e164(request.data.get("phone", ""))
+    if not phone:
+        return Response({"detail": "Valid phone (E.164) required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    if phone in settings.OTP_TEST_PHONES:
+        # No code stored, no WhatsApp call — verify_otp_view accepts OTP_TEST_CODE directly.
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    code = otp_store.generate_code()
+    otp_store.store(phone, code)
+
+    result = wa.send_otp_template(phone, code)
+    OtpDeliveryLog.objects.create(
+        phone=phone,
+        template_name=settings.WHATSAPP_OTP_TEMPLATE_NAME,
+        result_ok=result.get("ok", False),
+        message_id=result.get("message_id", ""),
+        error_message=result.get("error", "")[:2000],
+        response_json=result.get("response", {}),
+    )
+
+    if not result.get("ok"):
+        logger.warning(f"[otp] WhatsApp send failed for {phone}: {result.get('error')}")
+        return Response(
+            {"detail": "Could not send OTP. Please try again or use SMS-based sign-in."},
+            status=status.HTTP_502_BAD_GATEWAY,
+        )
+
+    return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+def verify_otp_view(request):
+    """Verify a code against the stored OTP and return a SimpleJWT pair.
+
+    Body: {"phone": "+919867933139", "code": "123456"}
+    Returns the same shape as firebase_auth_view: {refresh, access, profile_exists, uid}.
+    `uid` here is the E.164 phone (used as the natural identity key for non-Firebase users).
+    """
+    phone = _normalize_e164(request.data.get("phone", ""))
+    code = (request.data.get("code") or "").strip()
+    if not phone or not code:
+        return Response({"detail": "phone and code required."}, status=status.HTTP_400_BAD_REQUEST)
+
+    test_bypass = (
+        phone in settings.OTP_TEST_PHONES
+        and settings.OTP_TEST_CODE
+        and code == settings.OTP_TEST_CODE
+    )
+    if not test_bypass:
+        result = otp_store.verify(phone, code)
+        if result == otp_store.VerifyResult.WRONG_CODE:
+            return Response({"detail": "Incorrect code."}, status=status.HTTP_400_BAD_REQUEST)
+        if result == otp_store.VerifyResult.EXPIRED:
+            return Response({"detail": "Code expired. Request a new OTP."}, status=status.HTTP_400_BAD_REQUEST)
+        if result == otp_store.VerifyResult.TOO_MANY_ATTEMPTS:
+            return Response(
+                {"detail": "Too many wrong attempts. Request a new OTP."},
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+        # else: VerifyResult.OK — fall through to JWT issue
+
+    user, _ = User.objects.get_or_create(
+        username=f"phone_{phone}",
+        defaults={"email": f"{phone.lstrip('+')}@medunity.phone"},
+    )
+
+    prof = MedicalProfessional.objects.filter(user=user).first()
+    if prof:
+        prof.phone_verified_at = timezone.now()
+        prof.save(update_fields=["phone_verified_at"])
+
+    refresh = RefreshToken.for_user(user)
+    return Response({
+        "refresh": str(refresh),
+        "access": str(refresh.access_token),
+        "profile_exists": prof is not None,
+        "uid": phone,
+    })
+
+
+# ── Profile + verification (shared by Firebase and WhatsApp paths) ────────────
+
+
 @api_view(["POST"])
 @permission_classes([permissions.IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def create_profile(request):
     """First-time profile creation — multipart (includes license/degree doc uploads)."""
-    uid = _uid_from_user(request.user)
-    if not uid:
-        return Response({"detail": "Firebase UID not found for user."}, status=status.HTTP_400_BAD_REQUEST)
-
-    if MedicalProfessional.objects.filter(firebase_uid=uid).exists():
+    if MedicalProfessional.objects.filter(user=request.user).exists():
         return Response({"detail": "Profile already exists. Use PATCH /auth/me/ to update."}, status=status.HTTP_409_CONFLICT)
+
+    uid = _uid_from_user(request.user)  # may be None for WhatsApp-OTP users
 
     d = request.data
 
@@ -138,9 +251,8 @@ def create_profile(request):
 @permission_classes([permissions.IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
 def me(request):
-    uid = _uid_from_user(request.user)
     try:
-        prof = MedicalProfessional.objects.select_related('clinic').get(firebase_uid=uid)
+        prof = MedicalProfessional.objects.select_related('clinic').get(user=request.user)
     except MedicalProfessional.DoesNotExist:
         return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -158,9 +270,8 @@ def me(request):
 @permission_classes([permissions.IsAuthenticated])
 def set_clinic_location(request):
     """Update clinic GPS — required before SOS can be used."""
-    uid = _uid_from_user(request.user)
     try:
-        prof = MedicalProfessional.objects.get(firebase_uid=uid)
+        prof = MedicalProfessional.objects.get(user=request.user)
         clinic = prof.clinic
     except (MedicalProfessional.DoesNotExist, Clinic.DoesNotExist):
         return Response({"detail": "Profile or clinic not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -182,9 +293,8 @@ def set_clinic_location(request):
 @api_view(["GET"])
 @permission_classes([permissions.IsAuthenticated])
 def verification_status(request):
-    uid = _uid_from_user(request.user)
     try:
-        prof = MedicalProfessional.objects.get(firebase_uid=uid)
+        prof = MedicalProfessional.objects.get(user=request.user)
     except MedicalProfessional.DoesNotExist:
         return Response({"status": "no_profile"})
 
@@ -227,7 +337,11 @@ def unregister_device(request):
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 def _uid_from_user(user: User) -> str | None:
-    """Extract firebase UID from the username format 'firebase_<uid>'."""
+    """Extract firebase UID from the username format 'firebase_<uid>'.
+
+    Returns None for WhatsApp-OTP users (username 'phone_<E164>') — those use
+    the OneToOne `user=request.user` lookup directly.
+    """
     if user.username.startswith("firebase_"):
         return user.username[len("firebase_"):]
     return None

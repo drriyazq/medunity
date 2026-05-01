@@ -63,18 +63,43 @@ class AuthNotifier extends StateNotifier<AuthState> {
       debugPrint('[Auth] POSTing to /auth/firebase/...');
       final resp = await dio.post('/auth/firebase/', data: {'id_token': firebaseIdToken});
       debugPrint('[Auth] Got response: status=${resp.statusCode} data=${resp.data}');
-      HiveSetup.sessionBox.put('access_token', resp.data['access']);
-      HiveSetup.sessionBox.put('refresh_token', resp.data['refresh']);
-
-      if (resp.data['profile_exists'] == true) {
-        await refreshVerificationStatus();
-      } else {
-        state = const AuthState(status: AuthStatus.tokenIssued);
-      }
+      await _onJwtIssued(resp.data);
     } catch (e, st) {
       debugPrint('[Auth] onFirebaseTokenReceived ERROR: $e');
       debugPrint('[Auth] Stacktrace: $st');
       state = const AuthState(status: AuthStatus.loggedOut);
+    }
+  }
+
+  /// Send an OTP to an Indian phone via WhatsApp.
+  /// Throws on network/server failure so the UI can show an error.
+  Future<void> sendWhatsappOtp(String phone) async {
+    final dio = _ref.read(dioProvider);
+    debugPrint('[Auth] sendWhatsappOtp $phone');
+    await dio.post('/auth/otp/send/', data: {'phone': phone});
+  }
+
+  /// Verify an OTP. Mirrors the JWT handoff used by the Firebase path.
+  Future<void> verifyWhatsappOtp(String phone, String code) async {
+    final dio = _ref.read(dioProvider);
+    debugPrint('[Auth] verifyWhatsappOtp $phone');
+    try {
+      final resp = await dio.post('/auth/otp/verify/', data: {'phone': phone, 'code': code});
+      await _onJwtIssued(resp.data);
+    } catch (e, st) {
+      debugPrint('[Auth] verifyWhatsappOtp ERROR: $e');
+      debugPrint('[Auth] Stacktrace: $st');
+      rethrow;
+    }
+  }
+
+  Future<void> _onJwtIssued(dynamic data) async {
+    HiveSetup.sessionBox.put('access_token', data['access']);
+    HiveSetup.sessionBox.put('refresh_token', data['refresh']);
+    if (data['profile_exists'] == true) {
+      await refreshVerificationStatus();
+    } else {
+      state = const AuthState(status: AuthStatus.tokenIssued);
     }
   }
 

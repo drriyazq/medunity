@@ -109,8 +109,9 @@ VERIFICATION_STATUS = [
 class MedicalProfessional(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='professional')
 
-    firebase_uid = models.CharField(max_length=128, unique=True)
+    firebase_uid = models.CharField(max_length=128, unique=True, null=True, blank=True)
     phone = models.CharField(max_length=20)  # E.164 normalised
+    phone_verified_at = models.DateTimeField(null=True, blank=True)
     full_name = models.CharField(max_length=200)
     email = models.EmailField(blank=True)
 
@@ -207,3 +208,24 @@ class DeviceToken(models.Model):
 
     def __str__(self):
         return f"{self.user.username} — {self.platform} [{self.token[:20]}...]"
+
+
+class OtpDeliveryLog(models.Model):
+    """Audit row for every WhatsApp OTP send attempt. Use to debug deliverability
+    issues (template rejected, token expired, phone-id wrong) — Meta's error
+    payload lands in `response_json`.
+    """
+    phone = models.CharField(max_length=20, db_index=True)
+    template_name = models.CharField(max_length=100)
+    result_ok = models.BooleanField(default=False)
+    message_id = models.CharField(max_length=200, blank=True)
+    error_message = models.TextField(blank=True)
+    response_json = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        flag = "✓" if self.result_ok else "✗"
+        return f"{flag} {self.phone} {self.template_name} @ {self.created_at:%Y-%m-%d %H:%M}"
