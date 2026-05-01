@@ -95,6 +95,10 @@ class _ProfileSetupScreenState extends ConsumerState<ProfileSetupScreen> {
   void initState() {
     super.initState();
     _restoreDraft();
+    if (_phoneCtrl.text.isEmpty) {
+      final verified = HiveSetup.sessionBox.get('verified_phone') as String?;
+      if (verified != null) _phoneCtrl.text = verified;
+    }
   }
 
   @override

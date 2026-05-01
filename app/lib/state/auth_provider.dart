@@ -96,6 +96,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> _onJwtIssued(dynamic data) async {
     HiveSetup.sessionBox.put('access_token', data['access']);
     HiveSetup.sessionBox.put('refresh_token', data['refresh']);
+    if (data['uid'] != null) {
+      HiveSetup.sessionBox.put('verified_phone', data['uid']);
+    }
     if (data['profile_exists'] == true) {
       await refreshVerificationStatus();
     } else {
