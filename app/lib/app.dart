@@ -25,6 +25,10 @@ import 'features/vendors/vendors_screen.dart';
 import 'features/consent/consent_screen.dart';
 import 'features/home/home_shell.dart';
 import 'features/onboarding/profile_setup_screen.dart';
+import 'features/associates/associate_provider.dart';
+import 'features/associates/associate_public_screen.dart';
+import 'features/associates/associates_hub_screen.dart';
+import 'features/associates/booking_detail_screen.dart';
 import 'features/sos/incoming_sos_screen.dart';
 import 'features/sos/select_recipients_screen.dart';
 import 'features/sos/sos_countdown_screen.dart';
@@ -203,6 +207,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const SosDashboardScreen(),
       ),
 
+      // ── Associates ─────────────────────────────────────────────────────────
+      GoRoute(
+        path: '/associates',
+        builder: (_, __) => const AssociatesHubScreen(),
+      ),
+      GoRoute(
+        path: '/associates/bookings/:id',
+        builder: (_, state) => BookingDetailScreen(
+          bookingId: int.parse(state.pathParameters['id']!),
+        ),
+      ),
+      GoRoute(
+        path: '/associates/:profId',
+        builder: (_, state) => AssociatePublicScreen(
+          profId: int.parse(state.pathParameters['profId']!),
+        ),
+      ),
+
       // ── Home shell ──────────────────────────────────────────────────────────
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
@@ -243,6 +265,12 @@ class MedUnityApp extends ConsumerWidget {
     setPushOnSosAlert((alertId) {
       // New incoming SOS — refresh the recipient's received list.
       ref.invalidate(receivedAlertsProvider);
+    });
+    setPushOnAssociateBooking((bookingId) {
+      // Booking lifecycle changed — refresh detail + both lists.
+      ref.invalidate(associateBookingDetailProvider(bookingId));
+      ref.invalidate(myAssociateBookingsProvider('clinic'));
+      ref.invalidate(myAssociateBookingsProvider('associate'));
     });
     return MaterialApp.router(
       title: 'MedUnity',

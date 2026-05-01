@@ -129,6 +129,10 @@ class _ProfileBody extends StatelessWidget {
 
           // Clinic location tile
           _ClinicLocationTile(clinic: clinic, ref: ref),
+          const SizedBox(height: 16),
+
+          // Roles editor
+          _RolesTile(data: data, ref: ref),
           const SizedBox(height: 20),
 
           // Quick links
@@ -139,6 +143,11 @@ class _ProfileBody extends StatelessWidget {
             icon: Icons.sos_outlined,
             label: 'My SOS Alerts',
             onTap: () => context.push('/sos/dashboard'),
+          ),
+          _QuickLink(
+            icon: Icons.medical_services_outlined,
+            label: 'Associate Doctors (Find / Bookings / Be one)',
+            onTap: () => context.push('/associates'),
           ),
           _QuickLink(
             icon: Icons.handshake_outlined,
@@ -338,6 +347,202 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(value,
                 style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+const List<Map<String, String>> _allRoles = [
+  {'key': 'clinic_owner', 'label': 'Clinic Owner / Primary Physician'},
+  {'key': 'hospital_owner', 'label': 'Hospital Owner / Director'},
+  {'key': 'visiting_consultant', 'label': 'Visiting Consultant / Specialist'},
+  {'key': 'associate_doctor', 'label': 'Associate Doctor (Short-term Coverage)'},
+];
+
+class _RolesTile extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final WidgetRef ref;
+  const _RolesTile({required this.data, required this.ref});
+
+  @override
+  State<_RolesTile> createState() => _RolesTileState();
+}
+
+class _RolesTileState extends State<_RolesTile> {
+  bool _saving = false;
+
+  List<String> _currentRoles() {
+    final raw = widget.data['roles'];
+    if (raw is List) return raw.map((e) => e.toString()).toList();
+    final fallback = widget.data['role'] as String?;
+    return fallback == null ? [] : [fallback];
+  }
+
+  Future<void> _edit() async {
+    final selected = Set<String>.from(_currentRoles());
+    final picked = await showModalBottomSheet<Set<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RolesEditorSheet(initialSelection: selected),
+    );
+    if (picked == null || picked.isEmpty) return;
+    setState(() => _saving = true);
+    try {
+      final dio = widget.ref.read(dioProvider);
+      await dio.patch('/auth/me/', data: {'roles': picked.toList()});
+      // Refresh providers downstream
+      // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+      widget.ref.invalidate(_profileDataProvider);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Roles updated.'), backgroundColor: Colors.green),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Could not save roles.'),
+            backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final roles = _currentRoles();
+    final labels = {for (final r in _allRoles) r['key']!: r['label']!};
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.badge_outlined,
+                  color: MedUnityColors.primary),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('My Roles',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+              ),
+              TextButton(
+                onPressed: _saving ? null : _edit,
+                child: const Text('Edit'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (roles.isEmpty)
+            const Text('No roles set yet.',
+                style: TextStyle(
+                    color: MedUnityColors.textSecondary, fontSize: 12))
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final r in roles)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: MedUnityColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      labels[r] ?? r,
+                      style: const TextStyle(
+                          color: MedUnityColors.primary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RolesEditorSheet extends StatefulWidget {
+  final Set<String> initialSelection;
+  const _RolesEditorSheet({required this.initialSelection});
+
+  @override
+  State<_RolesEditorSheet> createState() => _RolesEditorSheetState();
+}
+
+class _RolesEditorSheetState extends State<_RolesEditorSheet> {
+  late Set<String> _sel = Set.from(widget.initialSelection);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Text('Select all that apply',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(
+            'You can change these any time.',
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+          const SizedBox(height: 12),
+          for (final r in _allRoles)
+            CheckboxListTile(
+              value: _sel.contains(r['key']),
+              title: Text(r['label']!),
+              onChanged: (v) => setState(() {
+                if (v == true) {
+                  _sel.add(r['key']!);
+                } else {
+                  _sel.remove(r['key']!);
+                }
+              }),
+              dense: true,
+              controlAffinity: ListTileControlAffinity.leading,
+            ),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: _sel.isEmpty
+                ? null
+                : () => Navigator.pop<Set<String>>(context, _sel),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: MedUnityColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            child: const Text('Save'),
           ),
         ],
       ),

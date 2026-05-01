@@ -70,6 +70,7 @@ class _QuickNavRow extends StatelessWidget {
   const _QuickNavRow();
 
   static const _items = [
+    (icon: Icons.medical_services_outlined, label: 'Associates', path: '/associates'),
     (icon: Icons.store_outlined, label: 'Vendors', path: '/vendors'),
     (icon: Icons.handshake_outlined, label: 'Support', path: '/support'),
     (icon: Icons.leaderboard, label: 'Rankings', path: '/support/leaderboard'),

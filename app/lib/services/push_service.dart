@@ -29,6 +29,14 @@ SosAlertFn? _onSosAlert;
 
 void setPushOnSosAlert(SosAlertFn fn) => _onSosAlert = fn;
 
+// Called when an 'associate_booking' FCM arrives — host refreshes booking
+// providers so an open Bookings list / detail screen updates immediately.
+typedef AssociateBookingFn = void Function(int bookingId);
+AssociateBookingFn? _onAssociateBooking;
+
+void setPushOnAssociateBooking(AssociateBookingFn fn) =>
+    _onAssociateBooking = fn;
+
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
 
@@ -111,6 +119,15 @@ class PushService {
         if (alertId != null) _onSosResponse?.call(alertId);
         return;
       }
+      if (type == 'associate_booking') {
+        _showGenericNotification(message,
+            channel: 'default',
+            payload: message.data['deep_link'] as String?);
+        final bookingIdStr = message.data['booking_id'] as String?;
+        final bookingId = int.tryParse(bookingIdStr ?? '');
+        if (bookingId != null) _onAssociateBooking?.call(bookingId);
+        return;
+      }
       _localNotifications.show(
         message.hashCode,
         message.notification?.title,
@@ -139,6 +156,27 @@ class PushService {
 
   static void _onTokenRefresh(String token) {
     HiveSetup.sessionBox.put('fcm_token', token);
+  }
+
+  static Future<void> _showGenericNotification(
+    RemoteMessage message, {
+    String channel = 'default',
+    String? payload,
+  }) async {
+    await _localNotifications.show(
+      message.hashCode,
+      message.notification?.title,
+      message.notification?.body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channel,
+          'General',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+      ),
+      payload: payload,
+    );
   }
 
   static Future<void> _showSosResponseNotification(RemoteMessage message) async {
