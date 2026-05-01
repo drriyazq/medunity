@@ -35,13 +35,19 @@ package name, no manual fix needed.
 3. In `android/settings.gradle.kts` add to the `plugins { … }` block:
    ```kotlin
    id("com.google.gms.google-services") version "4.4.2" apply false
+   id("com.google.firebase.crashlytics") version "3.0.2" apply false
    ```
 4. In `android/app/build.gradle.kts` add to the `plugins { … }` block:
    ```kotlin
    id("com.google.gms.google-services")
+   id("com.google.firebase.crashlytics")
    ```
    (no version, no `apply false` on the app-level file)
 5. Run `flutter run --uninstall-first` after any Gradle plugin change.
+
+**Crashlytics activation:** after the first release build is uploaded, open
+<https://console.firebase.google.com/> → project `medunity` → **Build → Crashlytics → Get started**
+(one-time click). Without this the SDK uploads are silently dropped.
 
 **Kotlin DSL placement note:** this scaffold uses `pluginManagement {}` in `settings.gradle.kts`,
 so the version declaration for `com.google.gms.google-services` goes in `settings.gradle.kts` —
@@ -84,19 +90,60 @@ flutter run        REM device must be connected with USB debugging on
 
 ## Release build
 
+Generate a signing key first (one-time):
+
+```bat
+cd app\android
+make-keystore.bat
+```
+
+This creates `%USERPROFILE%\medunity-upload.jks`. Then copy
+`android\key.properties.template` → `android\key.properties` and fill in the password fields
+(both files gitignored).
+
+Wire signing into `android/app/build.gradle.kts` (after `flutter create`, the file does not include
+release signing by default — paste this `signingConfigs` block above the `buildTypes` block, and
+swap the `release` build type to use it):
+
+```kotlin
+import java.util.Properties
+import java.io.FileInputStream
+
+val keystoreProperties = Properties()
+val keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+}
+
+android {
+    // ...existing config...
+
+    signingConfigs {
+        create("release") {
+            keyAlias = keystoreProperties["keyAlias"] as String?
+            keyPassword = keystoreProperties["keyPassword"] as String?
+            storeFile = keystoreProperties["storeFile"]?.let { file(it as String) }
+            storePassword = keystoreProperties["storePassword"] as String?
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+        }
+    }
+}
+```
+
+Then build:
+
 ```bat
 cd app
 flutter build appbundle --release
 REM upload build\app\outputs\bundle\release\app-release.aab to Play Console
 ```
 
-Generate a signing key first (same workflow as SmartStep / SureDataPro):
-
-```bat
-keytool -genkey -v -keystore medunity.jks -alias medunity -keyalg RSA -keysize 2048 -validity 10000
-```
-
-Store the keystore and `key.properties` locally on the Windows machine — never commit them.
+Store the `.jks` and `key.properties` outside the repo — back them up in two places.
 
 ---
 

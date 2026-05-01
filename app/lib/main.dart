@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -17,14 +18,17 @@ Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
-  // appVerificationDisabledForTesting removed — Indian +91 phones now use the
-  // WhatsApp OTP path (backend), not Firebase Phone Auth. Firebase is retained
-  // only for non-India phones. Non-India debug testing still needs the SHA-1
-  // debug fingerprint or a test number added in Firebase Console.
+
+  if (kReleaseMode) {
+    FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
+
   await HiveSetup.init();
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
-  // Foreground/background FCM handlers, notification channels, permission ask.
-  // Token registration happens after login (auth_provider._onJwtIssued).
   await PushService.init();
   runApp(const ProviderScope(child: MedUnityApp()));
 }

@@ -1,0 +1,17 @@
+# Copy this file to android/key.properties and fill in real values.
+# key.properties is gitignored — never commit it.
+#
+# To generate the upload keystore, run android\make-keystore.bat (Windows)
+# or:
+#
+#   keytool -genkey -v -keystore $HOME/medunity-upload.jks \
+#           -storetype JKS -keyalg RSA -keysize 2048 -validity 10000 \
+#           -alias medunity-upload
+#
+# Back up the .jks file in two places (cloud + offline) — losing it means
+# you cannot update this app on Play Store ever again.
+
+storeFile=/ABSOLUTE/PATH/TO/medunity-upload.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=medunity-upload
+keyPassword=YOUR_KEY_PASSWORD

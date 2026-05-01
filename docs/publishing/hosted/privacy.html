@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedUnity — Privacy Policy</title>
+    <meta name="description" content="Privacy policy for MedUnity — the verified-doctor Android network.">
+    <style>
+        :root {
+            --ink: #0f1f25;
+            --ink-soft: #4a5b66;
+            --accent: #0C7B7C;
+            --bg: #fbfcfd;
+            --rule: #dde4e8;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            font-size: 16px; line-height: 1.6;
+            color: var(--ink); background: var(--bg);
+            max-width: 720px; margin: 0 auto;
+            padding: 32px 20px 64px;
+        }
+        header { border-bottom: 2px solid var(--accent); padding-bottom: 16px; margin-bottom: 28px; }
+        h1 { color: var(--accent); margin: 0 0 6px; font-size: 30px; }
+        h2 { color: var(--ink); margin: 32px 0 8px; font-size: 20px; }
+        h3 { color: var(--ink); margin: 20px 0 6px; font-size: 16px; font-weight: 700; }
+        p, li { color: var(--ink-soft); }
+        ul, ol { padding-left: 22px; }
+        li { margin-bottom: 4px; }
+        strong { color: var(--ink); }
+        a { color: var(--accent); text-decoration: none; border-bottom: 1px dashed var(--accent); }
+        a:hover { border-bottom-style: solid; }
+        .meta { color: var(--ink-soft); font-size: 14px; }
+        footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--rule); font-size: 13px; color: var(--ink-soft); }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>MedUnity Privacy Policy</h1>
+        <p class="meta"><strong>Last updated:</strong> May 2026 &nbsp;·&nbsp; <strong>Applies to:</strong> MedUnity Android application</p>
+    </header>
+
+    <p>MedUnity is a verified-only network for licensed medical professionals (18+) practising in India. This policy explains what information we collect, how we store it, who can see it, and your rights under the <strong>Digital Personal Data Protection Act 2023</strong> (India).</p>
+
+    <h2>1. Who we are</h2>
+    <p>MedUnity is operated from Mumbai, India. Reach us at <a href="mailto:drdentalmail@gmail.com">drdentalmail@gmail.com</a> for any privacy question, grievance, or data-rights request.</p>
+
+    <h2>2. What information we handle</h2>
+
+    <h3>Identity &amp; verification (server-side)</h3>
+    <ul>
+        <li><strong>Full name</strong>, <strong>phone number</strong>, <strong>specialty</strong>, <strong>qualifications</strong></li>
+        <li><strong>Medical registration number, council, year of registration</strong></li>
+        <li><strong>Verification documents</strong> (medical degree, registration certificate, clinic permit) — uploaded by you, reviewed by the MedUnity admin team, and retained as proof of verification</li>
+        <li><strong>Profile photo</strong> (optional)</li>
+    </ul>
+
+    <h3>Clinic &amp; location</h3>
+    <ul>
+        <li><strong>Clinic name and address</strong> as you enter them</li>
+        <li><strong>Clinic latitude/longitude</strong> — captured once when you tap "Set clinic location" using your device's GPS. Used for SOS radius calculation, consultant find-nearby, and circle auto-suggest. Not tracked in the background.</li>
+        <li><strong>Live location</strong> at the moment you tap SOS or open the find-nearby map. Sampled on demand only.</li>
+    </ul>
+
+    <h3>Communication &amp; activity</h3>
+    <ul>
+        <li>Posts, comments, and reviews you write inside circles, consultant bookings, vendor entries, and marketplace listings</li>
+        <li>SOS alerts you send (category, time, location, recipients) and your responses to others' alerts</li>
+        <li>Brownie Points awarded automatically when you respond to an SOS or accept a coverage request</li>
+    </ul>
+
+    <h3>Device data</h3>
+    <ul>
+        <li><strong>FCM push token</strong> — used to deliver SOS, verification status, and circle notifications to your device</li>
+        <li><strong>Crash reports</strong> (release builds only) via Firebase Crashlytics — stack trace + device model + OS version + app version. No name, phone, or registration number is logged.</li>
+    </ul>
+
+    <h3>Stored on this device only (encrypted at rest)</h3>
+    <p>Local Hive storage (AES-256, key in Android Keystore) holds:</p>
+    <ul>
+        <li>JWT access &amp; refresh tokens</li>
+        <li>Cached profile fields, current FCM token, draft posts, consent flag</li>
+    </ul>
+
+    <h3>Never collected</h3>
+    <ul>
+        <li>SMS, contacts, call logs, calendar, or microphone</li>
+        <li>Advertising identifiers</li>
+        <li>Biometric data</li>
+        <li>Background location</li>
+        <li>Patient information (MedUnity is for doctor-to-doctor use; patient PHI is intentionally out of scope)</li>
+    </ul>
+
+    <h2>3. Why we handle this information</h2>
+    <ol>
+        <li><strong>Verification</strong> — confirming you are a licensed medical professional before granting access</li>
+        <li><strong>Authentication</strong> — verifying it's really you signing in (WhatsApp OTP for +91 phones, Firebase Phone Auth otherwise)</li>
+        <li><strong>Core features</strong> — SOS routing within 1 km radius, consultant find-nearby, circle auto-suggest, marketplace and pool memberships</li>
+        <li><strong>Safety &amp; trust</strong> — moderating violating content, removing fraudulent vendors, blocking misuse of SOS</li>
+        <li><strong>Stability</strong> — anonymous crash reports and aggregate usage trends</li>
+    </ol>
+
+    <h2>4. Who can see your data</h2>
+    <ul>
+        <li><strong>You</strong> — full access through the app</li>
+        <li><strong>Other verified doctors</strong> — your name, specialty, clinic name and approximate location, profile photo, and any content you post inside circles or consultant listings. Your phone number is <strong>not</strong> shown to other doctors unless you explicitly include it in a post or accept a consultant booking that exchanges contact details.</li>
+        <li><strong>The MedUnity admin team</strong> — full record (including verification documents) for the verification gate, abuse moderation, and grievance response</li>
+        <li><strong>Service providers</strong> (Google Firebase for auth/FCM/Crashlytics, Meta WhatsApp for OTP delivery, Google Maps for map rendering) — only the minimum required to provide that service. Bound by their respective platform-data terms.</li>
+        <li><strong>Nobody else.</strong> We do not sell, rent, share, or trade your data with advertisers, brokers, recruiters, or any third party.</li>
+    </ul>
+
+    <h2>5. How long we keep it</h2>
+    <ul>
+        <li><strong>Account &amp; profile</strong> — kept while your account is active. Deleted within 30 days of your written request to <a href="mailto:drdentalmail@gmail.com">drdentalmail@gmail.com</a>.</li>
+        <li><strong>Verification documents</strong> — retained as proof of verification for the lifetime of the account; deleted on account deletion.</li>
+        <li><strong>Posts, comments, SOS history</strong> — retained for the lifetime of the account; you can delete individual items where the app supports it.</li>
+        <li><strong>Crash reports</strong> — 90 days at Firebase Crashlytics' default retention.</li>
+        <li><strong>OTP codes</strong> — 5 minutes in Redis, then expired or deleted on first successful use.</li>
+    </ul>
+
+    <h2>6. Your rights</h2>
+    <p>Under the Digital Personal Data Protection Act 2023 (India), you have the right to:</p>
+    <ul>
+        <li><strong>Access</strong> — request a copy of all data we hold about you</li>
+        <li><strong>Correct</strong> — edit your profile, clinic details, qualifications inside the app</li>
+        <li><strong>Erase</strong> — request full account deletion via email</li>
+        <li><strong>Withdraw consent</strong> — log out from Profile (clears local data) and email us to delete server-side data</li>
+        <li><strong>Raise a grievance</strong> — write to <a href="mailto:drdentalmail@gmail.com">drdentalmail@gmail.com</a> with the word <em>Privacy</em> in the subject line. Acknowledged within 7 days; full response within 30 days.</li>
+    </ul>
+
+    <h2>7. Verified-only access</h2>
+    <p>MedUnity is gated by manual admin verification. Your account exists in a "pending verification" state until our admin team reviews your registration certificate. During that period no features are reachable; if verification is rejected, your data is deleted within 30 days unless you appeal in writing.</p>
+
+    <h2>8. Third-party services</h2>
+    <p>MedUnity uses these services as data processors:</p>
+    <ul>
+        <li><strong>Google Firebase Authentication</strong> — phone-number verification (non-+91)</li>
+        <li><strong>Google Firebase Cloud Messaging</strong> — push notifications</li>
+        <li><strong>Google Firebase Crashlytics</strong> — crash diagnostics (release builds only)</li>
+        <li><strong>Meta WhatsApp Business Cloud API</strong> — OTP delivery to +91 phones via the approved <em>medunity_login_otp</em> Authentication template</li>
+        <li><strong>Google Maps Platform</strong> — map tiles for SOS, consultant, and circles screens</li>
+    </ul>
+    <p>No advertising SDKs, analytics SDKs, or data brokers are used.</p>
+
+    <h2>9. Security</h2>
+    <ul>
+        <li>API traffic uses HTTPS / TLS 1.2 or higher</li>
+        <li>JWT tokens on device are stored in Android Keystore-backed secure storage</li>
+        <li>Hive cache is encrypted at rest with AES-256 (key in Keystore)</li>
+        <li>Server access is restricted to a small number of admin accounts</li>
+        <li>The app is signed with a developer-controlled key; tampered APKs are rejected by Android</li>
+    </ul>
+
+    <h2>10. Children</h2>
+    <p>MedUnity is for adults aged 18 or over who are licensed medical professionals. We do not knowingly collect data from anyone under 18. If you believe a minor has registered, write to <a href="mailto:drdentalmail@gmail.com">drdentalmail@gmail.com</a> and we will delete the account within 7 days.</p>
+
+    <h2>11. Changes to this policy</h2>
+    <p>The <em>Last updated</em> date at the top changes whenever we revise this policy. Material changes are announced in-app before they take effect.</p>
+
+    <h2>12. Contact &amp; grievance officer</h2>
+    <p><strong>Email:</strong> <a href="mailto:drdentalmail@gmail.com">drdentalmail@gmail.com</a></p>
+    <p>Please include in the subject line:</p>
+    <ul>
+        <li><em>Privacy</em> — for data-rights requests (access / correct / delete)</li>
+        <li><em>Grievance</em> — for complaints under the DPDP Act</li>
+        <li><em>Verification</em> — for verification-status questions</li>
+    </ul>
+    <p>Acknowledgement within 7 days; full response within 30 days.</p>
+
+    <footer>
+        © 2026 MedUnity. See also: <a href="./terms.html">Terms of Use</a>.
+    </footer>
+</body>
+</html>
