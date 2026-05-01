@@ -150,6 +150,14 @@ final myAlertsProvider =
   return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
 });
 
+final receivedAlertsProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final dio = ref.read(dioProvider);
+  final resp = await dio.get('/sos/received-alerts/');
+  final list = (resp.data['alerts'] as List? ?? []);
+  return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+});
+
 // ── Incoming SOS ──────────────────────────────────────────────────────────────
 
 final incomingSosProvider = FutureProvider.autoDispose

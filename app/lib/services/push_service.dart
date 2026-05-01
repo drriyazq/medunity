@@ -22,6 +22,13 @@ SosResponseFn? _onSosResponse;
 
 void setPushOnSosResponse(SosResponseFn fn) => _onSosResponse = fn;
 
+// Called when a 'sos_alert' FCM arrives — host invalidates the received-alerts
+// provider so an open dashboard tab updates immediately.
+typedef SosAlertFn = void Function(int alertId);
+SosAlertFn? _onSosAlert;
+
+void setPushOnSosAlert(SosAlertFn fn) => _onSosAlert = fn;
+
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
 
@@ -92,6 +99,9 @@ class PushService {
       final type = message.data['type'];
       if (type == 'sos_alert') {
         _showSosNotification(message);
+        final alertIdStr = message.data['alert_id'] as String?;
+        final alertId = int.tryParse(alertIdStr ?? '');
+        if (alertId != null) _onSosAlert?.call(alertId);
         return;
       }
       if (type == 'sos_response') {

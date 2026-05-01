@@ -10,7 +10,7 @@ from accounts.models import DeviceToken
 from accounts.permissions import IsAdminVerified
 from medunity.fcm import send_push_notification
 
-from .models import SosAlert, SosResponse, find_nearby_clinics, haversine_km
+from .models import SosAlert, SosRecipient, SosResponse, find_nearby_clinics, haversine_km
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +83,14 @@ def send_sos(request):
         lng=lng,
         radius_km=radius_used,
         recipient_count=len(clinics),
+    )
+
+    # Persist recipient list so each recipient can see this in their
+    # incoming SOS history later. ignore_conflicts so a duplicate clinic
+    # owner can't break the bulk insert.
+    SosRecipient.objects.bulk_create(
+        [SosRecipient(alert=alert, professional=c.owner) for c in clinics],
+        ignore_conflicts=True,
     )
 
     # FCM push to all recipients
@@ -316,6 +324,54 @@ def my_alerts(request):
             'created_at': a.created_at,
             'expires_at': a.expires_at,
         })
+    return Response({'alerts': items})
+
+
+@api_view(['GET'])
+@permission_classes([IsAdminVerified])
+def received_alerts(request):
+    """List SOS alerts the authenticated user was a recipient of (last 30 days)."""
+    prof = request.user.professional
+    cutoff = timezone.now() - timedelta(days=30)
+
+    recipients = (
+        SosRecipient.objects
+        .filter(professional=prof, alert__created_at__gte=cutoff)
+        .select_related('alert__sender', 'alert__sender__clinic')
+        .order_by('-alert__created_at')
+    )
+
+    my_responses = {
+        r.alert_id: r
+        for r in SosResponse.objects.filter(
+            responder=prof, alert__created_at__gte=cutoff
+        )
+    }
+
+    items = []
+    for recv in recipients:
+        a = recv.alert
+        sender = a.sender
+        sender_clinic = getattr(sender, 'clinic', None)
+        my_resp = my_responses.get(a.id)
+        items.append({
+            'alert_id': a.pk,
+            'category': a.category,
+            'category_display': a.get_category_display(),
+            'is_active': a.is_active,
+            'status': a.status,
+            'sender_name': sender.full_name,
+            'sender_clinic_name': sender_clinic.name if sender_clinic else '',
+            'sender_phone': sender.phone,
+            'lat': float(a.lat),
+            'lng': float(a.lng),
+            'radius_km': a.radius_km,
+            'created_at': a.created_at,
+            'expires_at': a.expires_at,
+            'my_response': my_resp.status if my_resp else None,
+            'my_responded_at': my_resp.responded_at if my_resp else None,
+        })
+
     return Response({'alerts': items})
 
 

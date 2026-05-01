@@ -240,6 +240,10 @@ class MedUnityApp extends ConsumerWidget {
       ref.invalidate(sosStatusProvider(alertId));
       ref.invalidate(myAlertsProvider);
     });
+    setPushOnSosAlert((alertId) {
+      // New incoming SOS — refresh the recipient's received list.
+      ref.invalidate(receivedAlertsProvider);
+    });
     return MaterialApp.router(
       title: 'MedUnity',
       theme: MedUnityTheme.light(),

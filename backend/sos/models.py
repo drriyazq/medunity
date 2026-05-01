@@ -77,6 +77,28 @@ class SosResponse(models.Model):
         return f"{self.responder} — {self.status} for SOS #{self.alert_id}"
 
 
+class SosRecipient(models.Model):
+    """Records each professional an SOS alert was fanned out to.
+
+    Without this we can compute `recipient_count` but can't reconstruct
+    *which* doctors received an alert — so a recipient has no way to see
+    their own incoming SOS history. One row per (alert, professional)
+    is created at send time (see sos.views.send_sos).
+    """
+    alert = models.ForeignKey(SosAlert, on_delete=models.CASCADE, related_name='recipients')
+    professional = models.ForeignKey(
+        MedicalProfessional, on_delete=models.CASCADE, related_name='sos_received'
+    )
+    notified_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('alert', 'professional')
+        ordering = ['-notified_at']
+
+    def __str__(self):
+        return f"{self.professional} ← SOS #{self.alert_id}"
+
+
 def haversine_km(lat1, lng1, lat2, lng2) -> float:
     R = 6371
     dlat = math.radians(float(lat2) - float(lat1))
