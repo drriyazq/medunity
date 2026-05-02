@@ -10,7 +10,16 @@ import 'find_consultants_tab.dart';
 class ConsultantsScreen extends ConsumerWidget {
   /// 0 = Find, 1 = Bookings. Used when deep-linking from a push notification.
   final int initialTab;
-  const ConsultantsScreen({super.key, this.initialTab = 0});
+
+  /// When [initialTab] == 1 (Bookings), pick which inner tab to show:
+  /// 0 = "My Requests", 1 = "Incoming". Default 0.
+  final int initialBookingsSubTab;
+
+  const ConsultantsScreen({
+    super.key,
+    this.initialTab = 0,
+    this.initialBookingsSubTab = 0,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -33,8 +42,11 @@ class ConsultantsScreen extends ConsumerWidget {
             ],
           ),
         ),
-        body: const TabBarView(
-          children: [FindConsultantsTab(), BookingsTab()],
+        body: TabBarView(
+          children: [
+            const FindConsultantsTab(),
+            BookingsTab(initialIndex: initialBookingsSubTab),
+          ],
         ),
       ),
     );

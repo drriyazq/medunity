@@ -45,7 +45,7 @@ def _bucket_distance(km: float) -> str:
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def _prof_summary(prof, include_avg_rating=True) -> dict:
+def _prof_summary(prof, include_avg_rating=True, include_phone=False) -> dict:
     d = {
         'id': prof.pk,
         'full_name': prof.full_name,
@@ -60,6 +60,8 @@ def _prof_summary(prof, include_avg_rating=True) -> dict:
         agg = prof.reviews_received.aggregate(avg=Avg('rating'), count=Count('id'))
         d['avg_rating'] = round(agg['avg'], 1) if agg['avg'] else None
         d['review_count'] = agg['count']
+    if include_phone:
+        d['phone'] = prof.phone or ''
     clinic = getattr(prof, 'clinic', None)
     if clinic:
         d['clinic_name'] = clinic.name
@@ -68,6 +70,16 @@ def _prof_summary(prof, include_avg_rating=True) -> dict:
 
 
 def _booking_data(booking: ConsultantBooking, viewer_prof) -> dict:
+    """Phone visibility rules:
+    - Requester's phone is always visible to the consultant (so they can call
+      the requesting doctor before deciding to accept).
+    - Consultant's phone is visible to the requester only after the consultant
+      has accepted (or completed) — symmetric reveal.
+    """
+    viewer_is_requester = booking.requester_id == viewer_prof.id
+    viewer_is_consultant = booking.consultant_id == viewer_prof.id
+    consultant_phone_visible = booking.status in ('accepted', 'completed')
+
     return {
         'id': booking.pk,
         'procedure': booking.procedure,
@@ -76,9 +88,17 @@ def _booking_data(booking: ConsultantBooking, viewer_prof) -> dict:
         'requested_at': booking.requested_at,
         'responded_at': booking.responded_at,
         'completed_at': booking.completed_at,
-        'requester': _prof_summary(booking.requester, include_avg_rating=False),
-        'consultant': _prof_summary(booking.consultant, include_avg_rating=True),
-        'i_am_requester': booking.requester_id == viewer_prof.id,
+        'requester': _prof_summary(
+            booking.requester,
+            include_avg_rating=False,
+            include_phone=viewer_is_consultant,
+        ),
+        'consultant': _prof_summary(
+            booking.consultant,
+            include_avg_rating=True,
+            include_phone=viewer_is_requester and consultant_phone_visible,
+        ),
+        'i_am_requester': viewer_is_requester,
         'my_review_submitted': booking.reviews.filter(reviewer=viewer_prof).exists(),
     }
 
@@ -508,11 +528,14 @@ def bookings(request):
         notes=request.data.get('notes', '').strip(),
     )
 
-    # Notify the consultant
-    _push_booking_event(booking, 'new_booking',
-                        f'New booking request from {prof.full_name}',
-                        f'Procedure: {procedure}',
-                        to=consultant)
+    # Notify the consultant — they need the requester's phone immediately
+    # so they can call before deciding to accept.
+    body = f'Procedure: {procedure}'
+    if prof.phone:
+        body += f'\n📞 Call requester: {prof.phone}'
+    _push_booking_event(booking, 'new_booking', body=body,
+                        title=f'New booking request from {prof.full_name}',
+                        to=consultant, recipient_role='consultant')
 
     return Response(_booking_data(booking, prof), status=status.HTTP_201_CREATED)
 
@@ -536,10 +559,13 @@ def booking_action(request, pk, action):
         booking.status = 'accepted'
         booking.responded_at = timezone.now()
         booking.save(update_fields=['status', 'responded_at'])
+        # Reveal consultant's phone in the body so the requester can call them.
+        body = f'{prof.full_name} is on their way.'
+        if prof.phone:
+            body += f'\n📞 {prof.phone}'
         _push_booking_event(booking, 'booking_accepted',
-                            '✅ Booking Accepted',
-                            f'{prof.full_name} is on their way.',
-                            to=booking.requester)
+                            title='✅ Booking Accepted', body=body,
+                            to=booking.requester, recipient_role='requester')
 
     elif action == 'decline':
         if booking.consultant_id != prof.id:
@@ -550,9 +576,9 @@ def booking_action(request, pk, action):
         booking.responded_at = timezone.now()
         booking.save(update_fields=['status', 'responded_at'])
         _push_booking_event(booking, 'booking_declined',
-                            'Booking Declined',
-                            f'{prof.full_name} is unavailable.',
-                            to=booking.requester)
+                            title='Booking Declined',
+                            body=f'{prof.full_name} is unavailable.',
+                            to=booking.requester, recipient_role='requester')
 
     elif action == 'complete':
         if booking.consultant_id != prof.id and booking.requester_id != prof.id:
@@ -562,12 +588,13 @@ def booking_action(request, pk, action):
         booking.status = 'completed'
         booking.completed_at = timezone.now()
         booking.save(update_fields=['status', 'completed_at'])
-        # Notify both sides to leave a review
+        # Notify the other side to leave a review.
         other = booking.requester if prof.pk == booking.consultant_id else booking.consultant
+        other_role = 'requester' if other.pk == booking.requester_id else 'consultant'
         _push_booking_event(booking, 'booking_completed',
-                            '⭐ Rate your experience',
-                            'The consultation is done. Leave a review.',
-                            to=other)
+                            title='⭐ Rate your experience',
+                            body='The consultation is done. Leave a review.',
+                            to=other, recipient_role=other_role)
 
     elif action == 'cancel':
         if booking.requester_id != prof.id:
@@ -577,9 +604,9 @@ def booking_action(request, pk, action):
         booking.status = 'cancelled'
         booking.save(update_fields=['status'])
         _push_booking_event(booking, 'booking_cancelled',
-                            'Booking Cancelled',
-                            f'{prof.full_name} cancelled the booking.',
-                            to=booking.consultant)
+                            title='Booking Cancelled',
+                            body=f'{prof.full_name} cancelled the booking.',
+                            to=booking.consultant, recipient_role='consultant')
 
     else:
         return Response({'detail': 'Unknown action.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -622,7 +649,9 @@ def submit_review(request, pk):
 
 # ── FCM helper ────────────────────────────────────────────────────────────────
 
-def _push_booking_event(booking, event_type, title, body, to):
+def _push_booking_event(booking, event_type, title, body, to, recipient_role='consultant'):
+    """recipient_role: 'consultant' or 'requester' — drives the deep-link query
+    param so the Flutter app opens the right Bookings sub-tab on tap."""
     tokens = list(DeviceToken.objects.filter(user=to.user).values_list('token', flat=True))
     for token in tokens:
         send_push_notification(
@@ -632,7 +661,8 @@ def _push_booking_event(booking, event_type, title, body, to):
             data={
                 'type': event_type,
                 'booking_id': str(booking.pk),
-                'deep_link': f'/consultants/bookings/{booking.pk}',
+                'recipient_role': recipient_role,
+                'deep_link': f'/consultants/bookings/{booking.pk}?as={recipient_role}',
             },
             priority='high',
             channel_id='consultant_request_v1',

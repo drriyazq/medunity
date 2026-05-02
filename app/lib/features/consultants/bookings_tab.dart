@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/api/client.dart';
 import '../../theme.dart';
@@ -7,12 +8,15 @@ import 'consultants_provider.dart';
 import 'review_sheet.dart';
 
 class BookingsTab extends ConsumerWidget {
-  const BookingsTab({super.key});
+  /// 0 = My Requests, 1 = Incoming. Push-notification deep links use this.
+  final int initialIndex;
+  const BookingsTab({super.key, this.initialIndex = 0});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
       length: 2,
+      initialIndex: initialIndex,
       child: Column(
         children: [
           const TabBar(
@@ -170,6 +174,33 @@ class _BookingCardState extends State<_BookingCard> {
             style: const TextStyle(
                 fontSize: 13, color: MedUnityColors.textSecondary),
           ),
+          if ((other['phone'] as String? ?? '').isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.phone, size: 16, color: MedUnityColors.primary),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(other['phone'] as String,
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: MedUnityColors.primary)),
+                ),
+                TextButton.icon(
+                  onPressed: () => _callPhone(other['phone'] as String),
+                  icon: const Icon(Icons.call, size: 16),
+                  label: const Text('Call'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.green[700],
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ],
           if ((b['notes'] as String? ?? '').isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(b['notes'] as String, style: const TextStyle(fontSize: 13)),
@@ -255,6 +286,13 @@ class _BookingCardState extends State<_BookingCard> {
         ],
       ),
     );
+  }
+
+  Future<void> _callPhone(String phone) async {
+    final cleaned = phone.replaceAll(RegExp(r'\s+'), '');
+    final uri = Uri(scheme: 'tel', path: cleaned);
+    // Android 11+ doesn't reliably resolve tel: through canLaunchUrl; just launch.
+    await launchUrl(uri);
   }
 
   void _showReview(BuildContext context) {
