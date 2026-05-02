@@ -322,28 +322,28 @@ class _CreateListingSheetState extends State<_CreateListingSheet> {
               TextField(controller: _descCtrl, maxLines: 3,
                   decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder())),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _category,
-                      decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
-                      items: _mktCategories.skip(1).map((c) =>
-                          DropdownMenuItem(value: c.$1, child: Text(c.$2))).toList(),
-                      onChanged: (v) => setState(() => _category = v ?? 'other'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _condition,
-                      decoration: const InputDecoration(labelText: 'Condition', border: OutlineInputBorder()),
-                      items: _conditions.map((c) =>
-                          DropdownMenuItem(value: c.$1, child: Text(c.$2))).toList(),
-                      onChanged: (v) => setState(() => _condition = v ?? 'good'),
-                    ),
-                  ),
-                ],
+              DropdownButtonFormField<String>(
+                value: _category,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(),
+                ),
+                items: _mktCategories.skip(1).map((c) =>
+                    DropdownMenuItem(value: c.$1, child: Text(c.$2))).toList(),
+                onChanged: (v) => setState(() => _category = v ?? 'other'),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _condition,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'Condition',
+                  border: OutlineInputBorder(),
+                ),
+                items: _conditions.map((c) =>
+                    DropdownMenuItem(value: c.$1, child: Text(c.$2))).toList(),
+                onChanged: (v) => setState(() => _condition = v ?? 'good'),
               ),
               const SizedBox(height: 12),
               TextField(controller: _priceCtrl, keyboardType: TextInputType.number,
