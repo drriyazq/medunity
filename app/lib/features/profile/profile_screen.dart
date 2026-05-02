@@ -362,6 +362,18 @@ const List<Map<String, String>> _allRoles = [
   {'key': 'academic_teaching', 'label': 'Academic / Teaching (Dental College Faculty)'},
 ];
 
+/// Compact labels for the role pills on the profile body. Long descriptive
+/// labels (in `_allRoles`) overflow the pill on small screens — use these
+/// for chip-style display only. The editor checkbox still shows the full
+/// label so users see the role description when picking.
+const _rolePillLabels = {
+  'clinic_owner': 'Clinic Owner',
+  'hospital_owner': 'Hospital Owner',
+  'visiting_consultant': 'Visiting Consultant',
+  'associate_doctor': 'Associate Doctor',
+  'academic_teaching': 'Academic / Teaching',
+};
+
 class _RolesTile extends StatefulWidget {
   final Map<String, dynamic> data;
   final WidgetRef ref;
@@ -457,41 +469,54 @@ class _RolesTileState extends State<_RolesTile> {
                 style: TextStyle(
                     color: MedUnityColors.textSecondary, fontSize: 12))
           else
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final r in roles)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: r == primary
-                          ? MedUnityColors.primary
-                          : MedUnityColors.primary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (r == primary) ...[
-                          const Icon(Icons.star,
-                              size: 12, color: Colors.white),
-                          const SizedBox(width: 4),
-                        ],
-                        Text(
-                          labels[r] ?? r,
-                          style: TextStyle(
-                              color: r == primary
-                                  ? Colors.white
-                                  : MedUnityColors.primary,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600),
+            // LayoutBuilder so each pill can be capped at the available card
+            // width — long role labels were overflowing the right edge by
+            // ~44 px on a 360 px screen.
+            LayoutBuilder(
+              builder: (ctx, c) => Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final r in roles)
+                    ConstrainedBox(
+                      constraints:
+                          BoxConstraints(maxWidth: c.maxWidth),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: r == primary
+                              ? MedUnityColors.primary
+                              : MedUnityColors.primary.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                      ],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (r == primary) ...[
+                              const Icon(Icons.star,
+                                  size: 12, color: Colors.white),
+                              const SizedBox(width: 4),
+                            ],
+                            Flexible(
+                              child: Text(
+                                _rolePillLabels[r] ?? labels[r] ?? r,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    color: r == primary
+                                        ? Colors.white
+                                        : MedUnityColors.primary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           if (roles.isNotEmpty && primary.isNotEmpty) ...[
             const SizedBox(height: 6),
