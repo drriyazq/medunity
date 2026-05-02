@@ -285,8 +285,8 @@ class _GoLiveScreenState extends ConsumerState<GoLiveScreen> {
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Text(
-              'When you are live, MedUnity shows a notification that location is being shared. '
-              'Your exact location is never shown to other doctors — only used to filter who sees you nearby.',
+              'Your location is used only to match you with nearby doctors looking for a consultant. '
+              'It is never shown to other doctors — they just see "Available now" and a coarse distance.',
               style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey[600],
