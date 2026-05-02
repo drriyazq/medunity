@@ -20,11 +20,14 @@ class MedicalProfessionalSerializer(serializers.ModelSerializer):
     role_display = serializers.CharField(source='get_role_display', read_only=True)
     roles_display = serializers.SerializerMethodField()
 
+    primary_role_display = serializers.SerializerMethodField()
+
     class Meta:
         model = MedicalProfessional
         fields = [
             'id', 'firebase_uid', 'phone', 'full_name', 'email',
             'role', 'role_display', 'roles', 'roles_display',
+            'primary_role', 'primary_role_display',
             'medical_council', 'council_display',
             'license_number', 'specialization', 'specialization_display',
             'years_experience', 'qualification', 'about', 'profile_photo',
@@ -42,6 +45,11 @@ class MedicalProfessionalSerializer(serializers.ModelSerializer):
         labels = dict(ROLE_CHOICES)
         return [{'key': r, 'label': labels.get(r, r)} for r in (obj.roles or [])]
 
+    def get_primary_role_display(self, obj):
+        if not obj.primary_role:
+            return ''
+        return dict(ROLE_CHOICES).get(obj.primary_role, obj.primary_role)
+
 
 class MedicalProfessionalUpdateSerializer(serializers.ModelSerializer):
     """Editable fields only — credentials (license, council) are read-only post-submit."""
@@ -49,7 +57,7 @@ class MedicalProfessionalUpdateSerializer(serializers.ModelSerializer):
         model = MedicalProfessional
         fields = [
             'about', 'profile_photo', 'years_experience',
-            'qualification', 'email', 'roles',
+            'qualification', 'email', 'roles', 'primary_role',
         ]
 
     def validate_roles(self, value):
@@ -62,6 +70,22 @@ class MedicalProfessionalUpdateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(f'Unknown role keys: {bad}')
         # Dedupe while preserving order
         return list(dict.fromkeys(value))
+
+    def validate_primary_role(self, value):
+        if value and value not in VALID_ROLE_KEYS:
+            raise serializers.ValidationError('Unknown primary_role.')
+        return value
+
+    def validate(self, attrs):
+        # primary_role must be a member of roles. If roles is being patched,
+        # validate against the patched list; else against the existing one.
+        roles = attrs.get('roles', getattr(self.instance, 'roles', []) or [])
+        primary = attrs.get('primary_role', getattr(self.instance, 'primary_role', ''))
+        # If primary missing or not in roles, auto-promote the first selected role.
+        if not primary or primary not in roles:
+            primary = roles[0] if roles else ''
+            attrs['primary_role'] = primary
+        return attrs
 
 
 class DeviceTokenSerializer(serializers.ModelSerializer):

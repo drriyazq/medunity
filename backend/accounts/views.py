@@ -11,7 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 from . import otp as otp_store
 from . import whatsapp as wa
-from .models import Clinic, DeviceToken, MedicalProfessional, OtpDeliveryLog
+from .models import Clinic, DeviceToken, MedicalProfessional, OtpDeliveryLog, ROLE_CHOICES
 from .serializers import (
     ClinicSerializer,
     DeviceTokenSerializer,
@@ -351,3 +351,109 @@ def _uid_from_user(user: User) -> str | None:
     if user.username.startswith("firebase_"):
         return user.username[len("firebase_"):]
     return None
+
+
+# ── Nearby clinics & hospitals (for consultant + associate Home previews) ─────
+
+@api_view(["GET"])
+@permission_classes([permissions.IsAuthenticated])
+def nearby_clinics(request):
+    """List nearby clinic_owner / hospital_owner profiles.
+
+    Used by the role-driven Home preview on consultant / associate primary
+    accounts ("clinics & hospitals near me to introduce yourself to").
+
+    Query params:
+      lat, lng     — optional. If omitted, falls back to caller's
+                     Clinic.lat/lng.
+      kind         — 'clinic_owner' | 'hospital_owner' | 'both' (default)
+      radius_km    — optional, default 10. Max 50.
+
+    Returns a JSON list of doctor cards sorted by distance with bucketed
+    distance_label (1 km / 2 km / 5 km / 10 km / etc). Exact lat/lng
+    deliberately NOT returned — same privacy posture as the consultant search.
+    """
+    from sos.models import haversine_km
+    me = MedicalProfessional.objects.filter(user=request.user).first()
+    if not me:
+        return Response({"detail": "Profile not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    lat = request.query_params.get('lat')
+    lng = request.query_params.get('lng')
+    if lat is None or lng is None:
+        clinic = getattr(me, 'clinic', None)
+        if clinic and clinic.lat is not None and clinic.lng is not None:
+            lat, lng = float(clinic.lat), float(clinic.lng)
+        else:
+            return Response(
+                {"detail": "Set your clinic location first or pass lat & lng."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+    else:
+        try:
+            lat, lng = float(lat), float(lng)
+        except (TypeError, ValueError):
+            return Response({"detail": "Invalid lat/lng."}, status=status.HTTP_400_BAD_REQUEST)
+
+    kind = request.query_params.get('kind', 'both').strip()
+    try:
+        radius_km = min(50.0, max(0.5, float(request.query_params.get('radius_km', 10))))
+    except (TypeError, ValueError):
+        radius_km = 10.0
+
+    role_filters = []
+    if kind in ('clinic_owner', 'both'):
+        role_filters.append('clinic_owner')
+    if kind in ('hospital_owner', 'both'):
+        role_filters.append('hospital_owner')
+    if not role_filters:
+        return Response([])
+
+    # Pre-filter to the small set of verified profiles that have at least one
+    # of the target roles in their `roles` JSONField. Then haversine + bucket.
+    candidates = (
+        MedicalProfessional.objects
+        .filter(is_admin_verified=True)
+        .exclude(pk=me.pk)
+        .select_related('clinic')
+    )
+
+    def _has_role(prof) -> bool:
+        roles = prof.roles or []
+        return any(r in roles for r in role_filters)
+
+    def _bucket(km: float) -> str:
+        if km < 1: return 'Within 1 km'
+        if km < 2: return 'Within 2 km'
+        if km < 5: return '2–5 km'
+        if km < 10: return '5–10 km'
+        return f'{int(round(km))} km'
+
+    results = []
+    for prof in candidates:
+        if not _has_role(prof):
+            continue
+        clinic = getattr(prof, 'clinic', None)
+        if not clinic or clinic.lat is None or clinic.lng is None:
+            continue
+        dist = haversine_km(lat, lng, float(clinic.lat), float(clinic.lng))
+        if dist > radius_km:
+            continue
+        primary = prof.primary_role or (prof.roles or [None])[0] or prof.role
+        results.append({
+            'id': prof.id,
+            'full_name': prof.full_name,
+            'specialization_display': prof.get_specialization_display(),
+            'primary_role': primary,
+            'primary_role_display': dict(ROLE_CHOICES).get(primary, ''),
+            'roles': prof.roles or [],
+            'clinic_name': clinic.name if hasattr(clinic, 'name') else '',
+            'clinic_city': clinic.city,
+            'profile_photo': prof.profile_photo.url if prof.profile_photo else None,
+            'distance_km_raw': round(dist, 2),  # for client sort fallback
+            'distance_label': _bucket(dist),
+        })
+    results.sort(key=lambda r: r['distance_km_raw'])
+    for r in results:
+        r.pop('distance_km_raw', None)
+    return Response(results[:30])

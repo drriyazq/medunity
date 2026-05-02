@@ -12,4 +12,5 @@ urlpatterns = [
     path("verification-status/", views.verification_status, name="verification_status"),
     path("devices/register/", views.register_device, name="register_device"),
     path("devices/unregister/", views.unregister_device, name="unregister_device"),
+    path("nearby-clinics/", views.nearby_clinics, name="nearby_clinics"),
 ]

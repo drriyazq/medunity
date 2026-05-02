@@ -72,10 +72,16 @@ class DirectMessage(models.Model):
 
 
 class ThreadReadState(models.Model):
-    """Per-participant last-read marker for unread-count computation.
+    """Per-participant last-read marker + per-side soft-delete marker.
 
     Created on first read. `last_read_at` is updated on POST /read/.
     Unread = thread.messages.filter(created_at__gt=last_read_at).exclude(sender=me).count().
+
+    `deleted_at` is the per-side "Delete conversation for me" timestamp. When
+    set, threads/messages with `created_at <= deleted_at` are hidden from this
+    professional's inbox + thread view. A new message with `created_at >
+    deleted_at` un-hides the thread automatically (matches WhatsApp-style
+    "Delete for me" semantics).
     """
     thread = models.ForeignKey(
         DirectThread, on_delete=models.CASCADE, related_name='read_states',
@@ -84,9 +90,29 @@ class ThreadReadState(models.Model):
         MedicalProfessional, on_delete=models.CASCADE, related_name='thread_read_states',
     )
     last_read_at = models.DateTimeField(default=timezone.now)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ('thread', 'professional')
 
     def __str__(self):
         return f'Read state: prof {self.professional_id} on thread {self.thread_id}'
+
+
+class DirectMessageHide(models.Model):
+    """Per-message, per-user soft-delete marker.
+
+    Long-pressing a single message bubble → "Delete for me" inserts a row
+    here. The thread view + outbound payload exclude messages whose ID is in
+    this user's hide-list. Other participant still sees the message.
+    """
+    message = models.ForeignKey(
+        DirectMessage, on_delete=models.CASCADE, related_name='hides',
+    )
+    professional = models.ForeignKey(
+        MedicalProfessional, on_delete=models.CASCADE, related_name='hidden_messages',
+    )
+    hidden_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('message', 'professional')

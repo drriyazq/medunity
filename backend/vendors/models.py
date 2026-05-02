@@ -9,6 +9,7 @@ VENDOR_CATEGORIES = [
     ('equipment_technician', 'Equipment Technician / Service'),
     ('pharmacy', 'Pharmacy / Compounding'),
     ('imaging_centre', 'Imaging Centre / Radiology'),
+    ('dental_assistant', 'Dental Assistant / Chairside Help'),
     ('other', 'Other'),
 ]
 

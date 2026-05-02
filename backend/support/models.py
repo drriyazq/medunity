@@ -6,6 +6,7 @@ from accounts.models import MedicalProfessional
 REQUEST_TYPES = [
     ('coverage', 'Patient Coverage'),
     ('space_lending', 'Space / Operatory Lending'),
+    ('find_associate', 'Find Associate (Clinic Hiring)'),
 ]
 
 REQUEST_STATUS = [
@@ -18,6 +19,7 @@ POINT_SOURCES = [
     ('sos_response', 'SOS Response'),
     ('coverage', 'Coverage / Shift Help'),
     ('space_lending', 'Space Lending'),
+    ('find_associate', 'Found Associate'),
     ('manual', 'Manual Award'),
 ]
 
@@ -25,6 +27,7 @@ POINTS_BY_SOURCE = {
     'sos_response': 10,
     'coverage': 15,
     'space_lending': 15,
+    'find_associate': 15,
     'manual': 5,
 }
 
@@ -58,8 +61,10 @@ class CoverageRequest(models.Model):
         self.status = 'accepted'
         self.accepted_at = timezone.now()
         self.save(update_fields=['accepted_by', 'status', 'accepted_at'])
-        award_points(acceptor, 'coverage' if self.request_type == 'coverage' else 'space_lending',
-                     source_id=self.pk, reason=f'Accepted: {self.title}')
+        # Map request_type → BrowniePoint source. Falls back to 'coverage'
+        # for any unknown future type so we never crash on accept.
+        source = self.request_type if self.request_type in POINTS_BY_SOURCE else 'coverage'
+        award_points(acceptor, source, source_id=self.pk, reason=f'Accepted: {self.title}')
 
 
 class BrowniePoint(models.Model):

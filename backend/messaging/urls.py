@@ -9,4 +9,7 @@ urlpatterns = [
     path('threads/<int:pk>/', views.thread_detail, name='msg-thread-detail'),
     path('threads/<int:pk>/messages/', views.send_message, name='msg-send'),
     path('threads/<int:pk>/read/', views.mark_read, name='msg-read'),
+    path('threads/<int:pk>/delete/', views.delete_thread, name='msg-delete-thread'),
+    path('threads/<int:pk>/messages/<int:msg_id>/delete/',
+         views.delete_message, name='msg-delete-message'),
 ]

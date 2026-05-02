@@ -26,7 +26,7 @@ from accounts.permissions import IsAdminVerified
 from consultants.models import ConsultantBlocklist
 from medunity.fcm import send_push_notification
 
-from .models import DirectMessage, DirectThread, ThreadReadState
+from .models import DirectMessage, DirectMessageHide, DirectThread, ThreadReadState
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +59,38 @@ def _doctor_card(prof) -> dict:
     }
 
 
+def _read_state_for(thread, prof):
+    return ThreadReadState.objects.filter(thread=thread, professional=prof).first()
+
+
+def _hidden_message_ids_for(thread, prof) -> set:
+    return set(
+        DirectMessageHide.objects
+        .filter(message__thread=thread, professional=prof)
+        .values_list('message_id', flat=True)
+    )
+
+
+def _visible_messages_qs(thread, prof):
+    """Messages still visible to `prof` after applying per-side deletes.
+
+    - Drops messages individually hidden via DirectMessageHide.
+    - Drops everything older than the per-side `deleted_at` (Delete-for-me on
+      the whole thread), if such a marker exists.
+    """
+    qs = thread.messages.all()
+    state = _read_state_for(thread, prof)
+    if state and state.deleted_at:
+        qs = qs.filter(created_at__gt=state.deleted_at)
+    hidden = _hidden_message_ids_for(thread, prof)
+    if hidden:
+        qs = qs.exclude(pk__in=hidden)
+    return qs
+
+
 def _unread_count_for(thread, prof) -> int:
-    state = ThreadReadState.objects.filter(thread=thread, professional=prof).first()
-    qs = thread.messages.exclude(sender=prof)
+    qs = _visible_messages_qs(thread, prof).exclude(sender=prof)
+    state = _read_state_for(thread, prof)
     if state:
         qs = qs.filter(created_at__gt=state.last_read_at)
     return qs.count()
@@ -69,7 +98,7 @@ def _unread_count_for(thread, prof) -> int:
 
 def _thread_summary(thread, prof) -> dict:
     other = thread.other_participant(prof)
-    last = thread.messages.order_by('-created_at').first()
+    last = _visible_messages_qs(thread, prof).order_by('-created_at').first()
     return {
         'id': thread.pk,
         'other': _doctor_card(other),
@@ -91,7 +120,12 @@ def _thread_summary(thread, prof) -> dict:
 @api_view(['GET'])
 @permission_classes([IsAdminVerified])
 def threads(request):
-    """Inbox — all my threads sorted newest-activity-first."""
+    """Inbox — all my threads sorted newest-activity-first.
+
+    Threads I've soft-deleted (ThreadReadState.deleted_at set) and where no
+    new visible messages exist after deleted_at are filtered out. As soon as
+    the other party messages again, the thread reappears.
+    """
     prof = request.user.professional
     qs = (
         DirectThread.objects
@@ -99,7 +133,18 @@ def threads(request):
         .select_related('participant_a', 'participant_b')
         .order_by('-last_message_at', '-created_at')
     )
-    return Response([_thread_summary(t, prof) for t in qs[:200]])
+    out = []
+    for t in qs[:200]:
+        summary = _thread_summary(t, prof)
+        if summary['last_message'] is None:
+            # Either the thread truly has no messages (just-created, never
+            # used) OR everything is hidden by my Delete-for-me. In the
+            # second case, skip it from the inbox.
+            state = _read_state_for(t, prof)
+            if state and state.deleted_at and t.messages.exists():
+                continue
+        out.append(summary)
+    return Response(out)
 
 
 @api_view(['GET'])
@@ -156,7 +201,7 @@ def thread_detail(request, pk):
         return Response({'detail': 'Not a participant.'},
                         status=status.HTTP_403_FORBIDDEN)
 
-    msgs_qs = thread.messages.all()
+    msgs_qs = _visible_messages_qs(thread, prof)
     before = request.query_params.get('before')
     if before:
         try:
@@ -258,4 +303,41 @@ def mark_read(request, pk):
     state, _ = ThreadReadState.objects.get_or_create(thread=thread, professional=me)
     state.last_read_at = timezone.now()
     state.save(update_fields=['last_read_at'])
+    return Response({'ok': True})
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAdminVerified])
+def delete_thread(request, pk):
+    """Soft-delete this thread for the calling professional only.
+
+    Sets `ThreadReadState.deleted_at = now`. New messages from the other
+    side after this timestamp will un-hide the thread automatically.
+    """
+    me = request.user.professional
+    thread = get_object_or_404(DirectThread, pk=pk)
+    if not thread.has_participant(me):
+        return Response({'detail': 'Not a participant.'},
+                        status=status.HTTP_403_FORBIDDEN)
+    state, _ = ThreadReadState.objects.get_or_create(thread=thread, professional=me)
+    state.deleted_at = timezone.now()
+    state.last_read_at = timezone.now()
+    state.save(update_fields=['deleted_at', 'last_read_at'])
+    return Response({'ok': True})
+
+
+@api_view(['DELETE'])
+@permission_classes([IsAdminVerified])
+def delete_message(request, pk, msg_id):
+    """Soft-delete a single message for the calling professional only.
+
+    Other side still sees it. Idempotent — re-deleting is a no-op.
+    """
+    me = request.user.professional
+    thread = get_object_or_404(DirectThread, pk=pk)
+    if not thread.has_participant(me):
+        return Response({'detail': 'Not a participant.'},
+                        status=status.HTTP_403_FORBIDDEN)
+    msg = get_object_or_404(DirectMessage, pk=msg_id, thread=thread)
+    DirectMessageHide.objects.get_or_create(message=msg, professional=me)
     return Response({'ok': True})

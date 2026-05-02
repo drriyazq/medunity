@@ -46,12 +46,20 @@ def requests(request):
     if request.method == 'GET':
         req_type = request.query_params.get('type', '').strip()
         include_closed = request.query_params.get('include_closed', '') == '1'
+        include_expired = request.query_params.get('include_expired', '') == '1'
         city = request.query_params.get('city', '').strip()
 
         qs = CoverageRequest.objects.select_related('requester', 'accepted_by')
         if not include_closed:
             qs = qs.filter(status='open')
-        if req_type in ('coverage', 'space_lending'):
+        # Hide requests whose end_dt is in the past — keeps the Home preview
+        # from showing weeks-old "Friday cover" posts that no one will fulfil.
+        # `end_dt__isnull=True` requests are kept (open-ended).
+        if not include_expired:
+            from django.utils import timezone
+            from django.db.models import Q
+            qs = qs.filter(Q(end_dt__isnull=True) | Q(end_dt__gte=timezone.now()))
+        if req_type in ('coverage', 'space_lending', 'find_associate'):
             qs = qs.filter(request_type=req_type)
         if city:
             qs = qs.filter(city__icontains=city)
@@ -64,7 +72,7 @@ def requests(request):
         return Response({'detail': 'title is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
     req_type = request.data.get('request_type', 'coverage')
-    if req_type not in ('coverage', 'space_lending'):
+    if req_type not in ('coverage', 'space_lending', 'find_associate'):
         req_type = 'coverage'
 
     start_dt = end_dt = None

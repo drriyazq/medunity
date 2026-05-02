@@ -81,6 +81,7 @@ ROLE_CHOICES = [
     ('hospital_owner', 'Hospital Owner / Director'),
     ('visiting_consultant', 'Visiting Consultant / Specialist'),
     ('associate_doctor', 'Associate Doctor (Short-term Coverage)'),
+    ('academic_teaching', 'Academic / Teaching (Dental College Faculty)'),
 ]
 VALID_ROLE_KEYS = {key for key, _ in ROLE_CHOICES}
 
@@ -119,11 +120,16 @@ class MedicalProfessional(models.Model):
     email = models.EmailField(blank=True)
 
     role = models.CharField(max_length=30, choices=ROLE_CHOICES)
-    # Multi-select roles. `role` (single) is retained as the primary role
-    # for back-compat with existing onboarding; `roles` is the canonical
-    # list and is what the app reads/writes from now on. Backfilled from
-    # role on first migration.
+    # Multi-select roles. `role` (single) is retained for back-compat with
+    # existing onboarding; `roles` is the canonical list and is what the app
+    # reads/writes from now on. Backfilled from `role` on first migration.
     roles = models.JSONField(default=list, blank=True)
+    # The single role the user is acting in primarily today. Drives
+    # role-aware UI on the Home screen and the "Primary Role" pill on cards.
+    # Must be one of the entries in `roles` (validated in the view layer).
+    primary_role = models.CharField(
+        max_length=30, choices=ROLE_CHOICES, blank=True, default=''
+    )
     medical_council = models.CharField(max_length=30, choices=MEDICAL_COUNCILS)
     license_number = models.CharField(max_length=100)
     specialization = models.CharField(max_length=50, choices=DOCTOR_SPECIALIZATIONS)
