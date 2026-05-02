@@ -121,7 +121,7 @@ class _MarketplaceTabState extends ConsumerState<MarketplaceTab> {
                     crossAxisCount: 2,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 12,
-                    childAspectRatio: 0.78,
+                    childAspectRatio: 0.66,
                   ),
                   itemCount: listings.length + (ref.read(listingsProvider.notifier).hasMore ? 1 : 0),
                   itemBuilder: (_, i) {
@@ -177,7 +177,7 @@ class _ListingCard extends StatelessWidget {
           children: [
             // Image or placeholder
             Expanded(
-              flex: 3,
+              flex: 4,
               child: ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 child: listing['image'] != null
@@ -194,22 +194,30 @@ class _ListingCard extends StatelessWidget {
             ),
             // Info
             Expanded(
-              flex: 2,
+              flex: 3,
               child: Padding(
                 padding: const EdgeInsets.all(8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(listing['title'] as String,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                        maxLines: 2, overflow: TextOverflow.ellipsis),
+                    Expanded(
+                      child: Text(listing['title'] as String,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                    ),
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Text('₹${listing['price']}',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, color: MedUnityColors.primary, fontSize: 13)),
-                        const Spacer(),
+                        Flexible(
+                          child: Text('₹${listing['price']}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: MedUnityColors.primary,
+                                  fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1),
+                        ),
+                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(

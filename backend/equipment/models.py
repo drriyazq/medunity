@@ -22,6 +22,11 @@ POOL_STATUS = [
     ('closed', 'Closed'),
 ]
 
+POOL_PURPOSES = [
+    ('bulk_buy', 'Bulk Discount Buy'),
+    ('shared_use', 'Shared Use'),
+]
+
 LISTING_CONDITIONS = [
     ('new', 'Brand New'),
     ('like_new', 'Like New'),
@@ -42,6 +47,7 @@ class EquipmentPool(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=30, choices=EQUIPMENT_CATEGORIES)
+    purpose = models.CharField(max_length=12, choices=POOL_PURPOSES, default='bulk_buy')
     target_amount = models.DecimalField(max_digits=12, decimal_places=2)
     created_by = models.ForeignKey(
         MedicalProfessional, on_delete=models.CASCADE, related_name='pools_created'

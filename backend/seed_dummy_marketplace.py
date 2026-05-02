@@ -155,43 +155,110 @@ print(f'  reviews: +{new_reviews} created\n')
 # ── 2. EQUIPMENT POOLS (co-purchase) ──────────────────────────────────────────
 
 POOLS = [
-    ('Andheri CBCT Co-Op (i-CAT FLX V17)', 'imaging',
-     'Shared CBCT housed at central Andheri location. Six-doctor pool.',
-     2200000, 6, 'open'),
-    ('Sirona Cerec Primemill — group purchase', 'lab_equipment',
-     'In-clinic milling for same-day crowns. Partial fills allowed.',
-     1850000, 5, 'open'),
-    ('Group Autoclave Service Contract (3 yr)', 'sterilization',
-     'Bulk discount on AMC + replacement parts for 12 clinics.',
-     180000, 12, 'funded'),
-    ('Carestream 8200 OPG — Bandra cluster', 'imaging',
-     'Pan + ceph imaging for 4 clinics in Bandra/Khar belt.',
-     950000, 4, 'open'),
-    ('Bulk Endo File Order (Reciproc Blue)', 'consumables',
-     'Quarterly bulk purchase. Minimum 2 boxes per member.',
-     85000, 8, 'active'),
-    ('Premium Dental Chair Replacement Pool', 'dental_chairs',
-     'Co-purchase 4 Sirona Sinius chairs at distributor pricing.',
-     2400000, 4, 'open'),
+    # ── BULK-BUY pools — each member buys their own unit, group discount ──────
+    # (name, category, description, target ₹, max_members, status, purpose)
+    ('Andheri Composite Bulk Buy — 3M Filtek Z350',
+     'consumables',
+     '12 Andheri/Lokhandwala dentists pooling for 25% bulk discount on Filtek Z350 XT '
+     'kits direct from 3M India distributor. Each clinic gets its own kit.',
+     540000, 12, 'funded', 'bulk_buy'),
+    ('Eighteeth E-Connect Pro — Mumbai endo group',
+     'surgical_instruments',
+     '8 endo-active practices across Andheri/Bandra buying their own unit at distributor '
+     'pricing (₹32k → ₹26k each).',
+     208000, 8, 'open', 'bulk_buy'),
+    ('Class B Autoclave (24L) — bulk distributor deal',
+     'sterilization',
+     '6 clinics in Versova/Lokhandwala co-ordering Mocom B-Iclave units. Free installation '
+     '+ 2-yr AMC included at this volume.',
+     570000, 6, 'open', 'bulk_buy'),
+    ('Woodpecker iLED Curing Light — bulk x15',
+     'surgical_instruments',
+     '15 Andheri/Bandra dentists. Distributor offered ₹8500 → ₹6800 per unit at this volume.',
+     102000, 15, 'active', 'bulk_buy'),
+    ('Septodont LA Cartridges — quarterly bulk',
+     'consumables',
+     '20-clinic quarterly pre-order from Septodont India. Lignospan price drops from '
+     '₹40 → ₹28 per cartridge. Each clinic gets its own quota delivered.',
+     240000, 20, 'open', 'bulk_buy'),
+    ('GC Fuji IX GIC — Bandra cluster bulk',
+     'consumables',
+     '12 Bandra/Khar clinics ordering quarterly. Bulk rate from GC India authorised dealer.',
+     108000, 12, 'open', 'bulk_buy'),
+
+    # ── SHARED-USE pools — group buys ONE unit and shares it ─────────────────
+    ('Implant Surgical Kit (BioHorizons) — Andheri share',
+     'surgical_instruments',
+     'ONE BioHorizons surgical kit hosted centrally in Lokhandwala. 6 implant-active '
+     'dentists share it — most place 3-4 implants/month so a private kit sits idle. '
+     'Members book usage days in the app.',
+     85000, 6, 'active', 'shared_use'),
+    ('PFM Repair Kit (Cojet + Opaque + Stains) — shared',
+     'lab_equipment',
+     'Bond-on PFM repair kit. 8 dentists in Andheri/Versova share. Used 2-4 times a month '
+     'per member — not worth owning solo. Stored at host clinic, members pick up for the day.',
+     45000, 8, 'active', 'shared_use'),
+    ('Apex Locator Root ZX II — Lokhandwala cluster',
+     'diagnostic',
+     'Single Root ZX II shared between 5 GP dentists who do occasional emergency RCTs but '
+     'mostly refer. Borrowable for 24h slots.',
+     58000, 5, 'open', 'shared_use'),
+    ('Electrosurgery Unit (Bonart ART-E1) — shared',
+     'surgical_instruments',
+     '6 Bandra-area dentists share one unit. Used ~6×/month per clinic for gingivectomy, '
+     'frenectomy, troughing for crown impressions.',
+     35000, 6, 'open', 'shared_use'),
+    ('Diode Laser (Picasso 5W) — Bandra/Khar share',
+     'surgical_instruments',
+     '4-clinic share for soft-tissue procedures. Pickup/dropoff via local courier between '
+     'clinics. Locked usage calendar prevents conflicts.',
+     145000, 4, 'funded', 'shared_use'),
+    ('Implant Torque Wrench + Multi-System Drivers — shared',
+     'surgical_instruments',
+     '8 implant-active dentists in Versova/Andheri share one set of drivers covering '
+     'Nobel/Straumann/Adin/Osstem connections. Used at the second-stage / restorative visit.',
+     22000, 8, 'active', 'shared_use'),
+    ('Sandblaster (Renfert Vario Basic) — Lokhandwala share',
+     'lab_equipment',
+     '5 clinics share one sandblaster for alumina abrasion before re-cementation, repair '
+     'cases, and surface conditioning. Stored at host clinic.',
+     28000, 5, 'open', 'shared_use'),
+]
+
+OLD_POOL_NAMES_TO_REMOVE = [
+    'Andheri CBCT Co-Op (i-CAT FLX V17)',
+    'Sirona Cerec Primemill — group purchase',
+    'Group Autoclave Service Contract (3 yr)',
+    'Carestream 8200 OPG — Bandra cluster',
+    'Bulk Endo File Order (Reciproc Blue)',
+    'Premium Dental Chair Replacement Pool',
 ]
 
 print('--- Equipment Pools ---')
+removed_old = EquipmentPool.objects.filter(name__in=OLD_POOL_NAMES_TO_REMOVE).delete()[0]
+if removed_old:
+    print(f'  removed {removed_old} stale pool(s) from pre-purpose seeder')
 new_pools = 0
 new_memberships = 0
 for p in POOLS:
-    name, cat, desc, target, max_m, st = p
+    name, cat, desc, target, max_m, st, purpose = p
     pool, created = EquipmentPool.objects.get_or_create(
         name=name,
         defaults={
             'category': cat, 'description': desc,
+            'purpose': purpose,
             'target_amount': Decimal(str(target)),
             'created_by': random.choice(ALL),
             'status': st, 'max_members': max_m,
         },
     )
+    # Backfill purpose on pre-existing rows from old seeder runs
+    if not created and pool.purpose != purpose:
+        pool.purpose = purpose
+        pool.save(update_fields=['purpose'])
     if created:
         new_pools += 1
-    # Fill 40-90% of slots based on status
+    # Fill rate based on status
     if st == 'open':
         fill = random.uniform(0.4, 0.7)
     elif st == 'funded':

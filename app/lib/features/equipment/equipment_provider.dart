@@ -10,12 +10,13 @@ class PoolsNotifier extends StateNotifier<AsyncValue<List<Map<String, dynamic>>>
     load();
   }
 
-  Future<void> load({String category = ''}) async {
+  Future<void> load({String category = '', String purpose = ''}) async {
     state = const AsyncValue.loading();
     final dio = _ref.read(dioProvider);
     try {
       final resp = await dio.get('/equipment/pools/', queryParameters: {
         if (category.isNotEmpty) 'category': category,
+        if (purpose.isNotEmpty) 'purpose': purpose,
       });
       final list = (resp.data as List).cast<Map<String, dynamic>>();
       state = AsyncValue.data(list);

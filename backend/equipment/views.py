@@ -30,6 +30,8 @@ def _pool_data(pool: EquipmentPool, prof) -> dict:
         'description': pool.description,
         'category': pool.category,
         'category_display': pool.get_category_display(),
+        'purpose': pool.purpose,
+        'purpose_display': pool.get_purpose_display(),
         'target_amount': str(pool.target_amount),
         'committed_amount': str(pool.committed_amount),
         'funding_pct': round(pool.funding_pct, 1),
@@ -88,9 +90,12 @@ def pools(request):
 
     if request.method == 'GET':
         category = request.query_params.get('category', '').strip()
+        purpose = request.query_params.get('purpose', '').strip()
         qs = EquipmentPool.objects.filter(status__in=['open', 'funded', 'active'])
         if category:
             qs = qs.filter(category=category)
+        if purpose in ('bulk_buy', 'shared_use'):
+            qs = qs.filter(purpose=purpose)
         return Response([_pool_data(p, prof) for p in qs[:50]])
 
     # POST — create
@@ -106,6 +111,10 @@ def pools(request):
     ]]
     if category not in valid_categories:
         return Response({'detail': 'Invalid category.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    purpose = request.data.get('purpose', 'bulk_buy').strip() or 'bulk_buy'
+    if purpose not in ('bulk_buy', 'shared_use'):
+        return Response({'detail': 'purpose must be bulk_buy or shared_use.'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         target_amount = Decimal(str(request.data['target_amount']))
@@ -128,6 +137,7 @@ def pools(request):
             name=name,
             description=request.data.get('description', '').strip(),
             category=category,
+            purpose=purpose,
             target_amount=target_amount,
             created_by=prof,
             max_members=max_members,

@@ -37,6 +37,18 @@ class _PoolBody extends StatelessWidget {
     final status = pool['status'] as String? ?? 'open';
     final fundingPct = pool['funding_pct'] as double? ?? 0;
     final members = (pool['members'] as List? ?? []).cast<Map<String, dynamic>>();
+    final purpose = pool['purpose'] as String? ?? 'bulk_buy';
+    final isSharedUse = purpose == 'shared_use';
+    final purposeColor = isSharedUse
+        ? const Color(0xFF8E24AA)
+        : const Color(0xFF1E88E5);
+    final purposeIcon =
+        isSharedUse ? Icons.handshake_outlined : Icons.local_shipping_outlined;
+    final purposeLabel = pool['purpose_display'] as String?
+        ?? (isSharedUse ? 'Shared Use' : 'Bulk Discount Buy');
+    final purposeBlurb = isSharedUse
+        ? 'One unit, shared between members. Book usage slots once funded and active.'
+        : 'Each member buys their own unit at a group-discounted price.';
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -49,8 +61,42 @@ class _PoolBody extends StatelessWidget {
           const SizedBox(height: 4),
           Text(pool['category_display'] as String? ?? '',
               style: const TextStyle(color: MedUnityColors.primary)),
+          const SizedBox(height: 12),
+          // Purpose chip + blurb
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: purposeColor.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: purposeColor.withOpacity(0.25)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(purposeIcon, color: purposeColor, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(purposeLabel,
+                          style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: purposeColor)),
+                      const SizedBox(height: 2),
+                      Text(purposeBlurb,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              color: MedUnityColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           if ((pool['description'] as String? ?? '').isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(pool['description'] as String),
           ],
           const SizedBox(height: 20),
@@ -119,8 +165,8 @@ class _PoolBody extends StatelessWidget {
                 ref: ref, isDestructive: true),
           ],
 
-          // Usage calendar (active pools only)
-          if (status == 'active' && isMember) ...[
+          // Usage calendar — shared-use pools only (bulk-buy doesn't share a unit)
+          if (isSharedUse && status == 'active' && isMember) ...[
             const SizedBox(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

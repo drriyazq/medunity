@@ -14,8 +14,25 @@ const _categories = [
   ('diagnostic', 'Diagnostic'),
   ('sterilization', 'Sterilization'),
   ('lab_equipment', 'Lab'),
+  ('consumables', 'Consumables'),
   ('other', 'Other'),
 ];
+
+const _purposeFilters = [
+  ('', 'All Pools'),
+  ('bulk_buy', 'Bulk Buy'),
+  ('shared_use', 'Shared Use'),
+];
+
+const _purposeColor = {
+  'bulk_buy': Color(0xFF1E88E5),    // blue — each clinic buys their own
+  'shared_use': Color(0xFF8E24AA),  // purple — one unit, shared
+};
+
+const _purposeIcon = {
+  'bulk_buy': Icons.local_shipping_outlined,
+  'shared_use': Icons.handshake_outlined,
+};
 
 class PoolsTab extends ConsumerStatefulWidget {
   const PoolsTab({super.key});
@@ -26,6 +43,11 @@ class PoolsTab extends ConsumerStatefulWidget {
 
 class _PoolsTabState extends ConsumerState<PoolsTab> {
   String _category = '';
+  String _purpose = '';
+
+  void _reload() {
+    ref.read(poolsProvider.notifier).load(category: _category, purpose: _purpose);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +55,51 @@ class _PoolsTabState extends ConsumerState<PoolsTab> {
 
     return Column(
       children: [
-        // Category filter
+        // Purpose segmented filter (primary)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: Row(
+            children: _purposeFilters.map((p) {
+              final selected = _purpose == p.$1;
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _purpose = p.$1);
+                    _reload();
+                  },
+                  child: Container(
+                    margin: EdgeInsets.only(
+                      right: p.$1 == 'shared_use' ? 0 : 6,
+                      left: p.$1 == '' ? 0 : 0,
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? MedUnityColors.primary
+                          : Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected ? MedUnityColors.primary : Colors.grey[300]!,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        p.$2,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: selected ? Colors.white : MedUnityColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+
+        // Category filter (secondary)
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -45,7 +111,7 @@ class _PoolsTabState extends ConsumerState<PoolsTab> {
                 selected: _category == c.$1,
                 onSelected: (_) {
                   setState(() => _category = c.$1);
-                  ref.read(poolsProvider.notifier).load(category: c.$1);
+                  _reload();
                 },
               ),
             )).toList(),
@@ -80,22 +146,34 @@ class _PoolsTabState extends ConsumerState<PoolsTab> {
             data: (pools) {
               if (pools.isEmpty) {
                 return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.group_work_outlined, size: 64, color: Colors.grey[300]),
-                      const SizedBox(height: 16),
-                      const Text('No co-purchase pools yet.',
-                          style: TextStyle(color: MedUnityColors.textSecondary)),
-                      const SizedBox(height: 4),
-                      const Text('Start one to pool funds with nearby colleagues.',
-                          style: TextStyle(fontSize: 12, color: MedUnityColors.textSecondary)),
-                    ],
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.group_work_outlined, size: 64, color: Colors.grey[300]),
+                        const SizedBox(height: 16),
+                        Text(
+                          _purpose == 'bulk_buy'
+                              ? 'No bulk-buy pools running yet.'
+                              : _purpose == 'shared_use'
+                                  ? 'No shared-use pools running yet.'
+                                  : 'No co-purchase pools yet.',
+                          style: const TextStyle(color: MedUnityColors.textSecondary),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Start one to either bulk-buy with a discount or share a single unit with nearby colleagues.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: MedUnityColors.textSecondary),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               }
               return RefreshIndicator(
-                onRefresh: () => ref.read(poolsProvider.notifier).load(category: _category),
+                onRefresh: () async => _reload(),
                 child: ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: pools.length,
@@ -137,6 +215,11 @@ class _PoolCard extends StatelessWidget {
     final fundingPct = pool['funding_pct'] as double? ?? 0;
     final isMember = pool['is_member'] as bool? ?? false;
     final color = _statusColor[status] ?? Colors.grey;
+    final purpose = pool['purpose'] as String? ?? 'bulk_buy';
+    final purposeColor = _purposeColor[purpose] ?? Colors.grey;
+    final purposeIcon = _purposeIcon[purpose] ?? Icons.group_work_outlined;
+    final purposeLabel = pool['purpose_display'] as String?
+        ?? (purpose == 'shared_use' ? 'Shared Use' : 'Bulk Buy');
 
     return InkWell(
       onTap: () => context.push('/equipment/pools/${pool['id']}'),
@@ -170,9 +253,35 @@ class _PoolCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
-            Text(pool['category_display'] as String? ?? '',
-                style: const TextStyle(color: MedUnityColors.textSecondary, fontSize: 12)),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                // Purpose pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: purposeColor.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(purposeIcon, size: 12, color: purposeColor),
+                      const SizedBox(width: 4),
+                      Text(purposeLabel,
+                          style: TextStyle(
+                              color: purposeColor, fontSize: 11, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(pool['category_display'] as String? ?? '',
+                      style: const TextStyle(color: MedUnityColors.textSecondary, fontSize: 12),
+                      overflow: TextOverflow.ellipsis),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
 
             // Funding progress
@@ -197,15 +306,26 @@ class _PoolCard extends StatelessWidget {
             const SizedBox(height: 6),
             Row(
               children: [
-                Text('₹${pool['committed_amount']} of ₹${pool['target_amount']}',
-                    style: const TextStyle(fontSize: 12, color: MedUnityColors.textSecondary)),
-                const Spacer(),
-                Icon(Icons.people, size: 14, color: Colors.grey[400]),
+                Flexible(
+                  child: Text('₹${pool['committed_amount']} of ₹${pool['target_amount']}',
+                      style: const TextStyle(fontSize: 12, color: MedUnityColors.textSecondary),
+                      overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  purpose == 'shared_use' ? Icons.handshake_outlined : Icons.people,
+                  size: 14,
+                  color: Colors.grey[400],
+                ),
                 const SizedBox(width: 4),
-                Text('${pool['member_count']}/${pool['max_members']}',
-                    style: const TextStyle(fontSize: 12, color: MedUnityColors.textSecondary)),
+                Text(
+                  purpose == 'shared_use'
+                      ? '${pool['member_count']}/${pool['max_members']} sharing'
+                      : '${pool['member_count']}/${pool['max_members']} joined',
+                  style: const TextStyle(fontSize: 12, color: MedUnityColors.textSecondary),
+                ),
                 if (isMember) ...[
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   const Icon(Icons.check_circle, size: 14, color: Colors.green),
                 ],
               ],
@@ -233,6 +353,7 @@ class _CreatePoolSheetState extends State<_CreatePoolSheet> {
   final _targetCtrl = TextEditingController();
   final _contribCtrl = TextEditingController();
   String _category = 'other';
+  String _purpose = 'bulk_buy';
   int _maxMembers = 5;
   bool _loading = false;
   String? _error;
@@ -262,6 +383,7 @@ class _CreatePoolSheetState extends State<_CreatePoolSheet> {
         'name': name,
         'description': _descCtrl.text.trim(),
         'category': _category,
+        'purpose': _purpose,
         'target_amount': target,
         'my_contribution': contrib,
         'max_members': _maxMembers,
@@ -296,6 +418,33 @@ class _CreatePoolSheetState extends State<_CreatePoolSheet> {
               const Text('Start a Co-Purchase Pool',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
+
+              // Purpose selector — what kind of pool
+              const Text('What kind of pool?',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              _PurposeOptionTile(
+                value: 'bulk_buy',
+                groupValue: _purpose,
+                icon: _purposeIcon['bulk_buy']!,
+                color: _purposeColor['bulk_buy']!,
+                title: 'Bulk Discount Buy',
+                subtitle: 'Each member buys their own unit. Pool together for a better price.',
+                onTap: () => setState(() => _purpose = 'bulk_buy'),
+              ),
+              const SizedBox(height: 8),
+              _PurposeOptionTile(
+                value: 'shared_use',
+                groupValue: _purpose,
+                icon: _purposeIcon['shared_use']!,
+                color: _purposeColor['shared_use']!,
+                title: 'Shared Use',
+                subtitle: 'Buy ONE unit and share it. Best for kits used a few times a month '
+                    '(PFM repair, surgical kits, apex locator, etc).',
+                onTap: () => setState(() => _purpose = 'shared_use'),
+              ),
+              const SizedBox(height: 16),
+
               TextField(controller: _nameCtrl,
                   decoration: const InputDecoration(labelText: 'Equipment name *', border: OutlineInputBorder())),
               const SizedBox(height: 12),
@@ -304,6 +453,7 @@ class _CreatePoolSheetState extends State<_CreatePoolSheet> {
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _category,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Category', border: OutlineInputBorder()),
                 items: _categories.skip(1).map((c) =>
                     DropdownMenuItem(value: c.$1, child: Text(c.$2))).toList(),
@@ -313,14 +463,18 @@ class _CreatePoolSheetState extends State<_CreatePoolSheet> {
               Row(
                 children: [
                   Expanded(child: TextField(controller: _targetCtrl, keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Target ₹ *', border: OutlineInputBorder()))),
+                      decoration: InputDecoration(
+                          labelText: _purpose == 'shared_use' ? 'Unit cost ₹ *' : 'Target ₹ *',
+                          border: const OutlineInputBorder()))),
                   const SizedBox(width: 12),
                   Expanded(child: TextField(controller: _contribCtrl, keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'My share ₹ *', border: OutlineInputBorder()))),
                 ],
               ),
               const SizedBox(height: 12),
-              Text('Max members: $_maxMembers'),
+              Text(_purpose == 'shared_use'
+                  ? 'Co-owners: $_maxMembers'
+                  : 'Max members: $_maxMembers'),
               Slider(value: _maxMembers.toDouble(), min: 2, max: 20, divisions: 18,
                   activeColor: MedUnityColors.primary,
                   label: '$_maxMembers',
@@ -346,6 +500,75 @@ class _CreatePoolSheetState extends State<_CreatePoolSheet> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PurposeOptionTile extends StatelessWidget {
+  final String value;
+  final String groupValue;
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _PurposeOptionTile({
+    required this.value,
+    required this.groupValue,
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = value == groupValue;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.08) : Colors.grey[50],
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? color : Colors.grey[300]!,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14,
+                          color: selected ? color : Colors.black87)),
+                  const SizedBox(height: 2),
+                  Text(subtitle,
+                      style: const TextStyle(
+                          fontSize: 12, color: MedUnityColors.textSecondary)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              selected ? Icons.radio_button_checked : Icons.radio_button_off,
+              color: selected ? color : Colors.grey[400],
+              size: 20,
+            ),
+          ],
         ),
       ),
     );
