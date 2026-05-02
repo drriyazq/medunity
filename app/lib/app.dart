@@ -148,6 +148,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) =>
             ConsultantProfileScreen(profId: int.parse(state.pathParameters['id']!)),
       ),
+      // Push-notification deep-link target — opens Consultants screen on the
+      // Bookings tab. The :id path param is currently informational; the user
+      // sees the booking in the list. Future: dedicated booking detail screen.
+      GoRoute(
+        path: '/consultants/bookings/:id',
+        builder: (_, __) => const ConsultantsScreen(initialTab: 1),
+      ),
       GoRoute(
         path: '/consultants/go-live',
         builder: (_, __) => const GoLiveScreen(),

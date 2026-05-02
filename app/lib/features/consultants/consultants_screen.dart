@@ -8,12 +8,15 @@ import 'consultants_provider.dart';
 import 'find_consultants_tab.dart';
 
 class ConsultantsScreen extends ConsumerWidget {
-  const ConsultantsScreen({super.key});
+  /// 0 = Find, 1 = Bookings. Used when deep-linking from a push notification.
+  final int initialTab;
+  const ConsultantsScreen({super.key, this.initialTab = 0});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return DefaultTabController(
       length: 2,
+      initialIndex: initialTab,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Consultants'),
