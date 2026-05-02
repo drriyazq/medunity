@@ -169,11 +169,16 @@ def nearby_consultants(request):
         )
 
     lat, lng = float(clinic.lat), float(clinic.lng)
+    sort = request.query_params.get('sort', 'distance').strip()
+    if sort not in ('distance', 'rating'):
+        sort = 'distance'
     # Bucketed cache key — 0.01° ≈ 1.1 km — keeps the 15-min cache stable while
-    # the doctor walks around their clinic without forcing recomputes.
+    # the doctor walks around their clinic without forcing recomputes. Sort is
+    # in the key so changing it doesn't return a wrong-sort cached payload.
     cache_key = (
         f'consult_search:{prof.pk}:{round(lat, 2)}:{round(lng, 2)}'
         f':{prof.specialization}:{",".join(sorted(prof.roles or []))}'
+        f':sort={sort}'
     )
     cached = cache.get(cache_key)
     if cached is not None:
@@ -218,7 +223,16 @@ def nearby_consultants(request):
         card['_sort'] = dist
         results.append(card)
 
-    results.sort(key=lambda r: r['_sort'])
+    if sort == 'rating':
+        # Highest avg first; null ratings sink to the bottom; ties broken by
+        # distance so the closest equally-rated consultant wins.
+        results.sort(key=lambda r: (
+            -(r['avg_rating'] or 0),
+            -(r['review_count'] or 0),
+            r['_sort'],
+        ))
+    else:
+        results.sort(key=lambda r: r['_sort'])
     for r in results:
         r.pop('_sort', None)
 

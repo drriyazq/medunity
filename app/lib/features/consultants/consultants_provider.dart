@@ -54,19 +54,27 @@ class NearbyConsultantsNotifier
     load();
   }
 
-  Future<void> load() async {
+  String _sort = 'distance';
+
+  Future<void> load({String sort = 'distance'}) async {
+    _sort = sort;
     state = const AsyncValue.loading();
     final dio = _ref.read(dioProvider);
     try {
-      // Server now filters by specialty mapping + per-consultant radius.
-      // No client-side params needed.
-      final resp = await dio.get('/consultants/nearby/');
+      // Server filters by specialty mapping + per-consultant radius.
+      // `sort` accepts 'distance' (default) or 'rating'.
+      final resp = await dio.get(
+        '/consultants/nearby/',
+        queryParameters: {'sort': sort},
+      );
       final list = (resp.data as List).cast<Map<String, dynamic>>();
       state = AsyncValue.data(list);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
+
+  String get sort => _sort;
 }
 
 final nearbyConsultantsProvider = StateNotifierProvider.autoDispose<

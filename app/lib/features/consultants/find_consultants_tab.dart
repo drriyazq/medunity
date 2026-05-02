@@ -5,11 +5,18 @@ import 'package:go_router/go_router.dart';
 import '../../theme.dart';
 import 'consultants_provider.dart';
 
-class FindConsultantsTab extends ConsumerWidget {
+class FindConsultantsTab extends ConsumerStatefulWidget {
   const FindConsultantsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FindConsultantsTab> createState() => _FindConsultantsTabState();
+}
+
+class _FindConsultantsTabState extends ConsumerState<FindConsultantsTab> {
+  String _sort = 'distance';
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(nearbyConsultantsProvider);
 
     return Column(
@@ -27,6 +34,44 @@ class FindConsultantsTab extends ConsumerWidget {
                   'Showing live consultants in your specialty nearby. Updated every 15 min.',
                   style: TextStyle(
                       fontSize: 12, color: MedUnityColors.textSecondary),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Sort control
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+          child: Row(
+            children: [
+              const Text('Sort:',
+                  style: TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500)),
+              const SizedBox(width: 10),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: 'distance',
+                    label: Text('Distance', style: TextStyle(fontSize: 12)),
+                    icon: Icon(Icons.place_outlined, size: 16),
+                  ),
+                  ButtonSegment(
+                    value: 'rating',
+                    label: Text('Rating', style: TextStyle(fontSize: 12)),
+                    icon: Icon(Icons.star_outline, size: 16),
+                  ),
+                ],
+                selected: {_sort},
+                onSelectionChanged: (s) {
+                  setState(() => _sort = s.first);
+                  ref
+                      .read(nearbyConsultantsProvider.notifier)
+                      .load(sort: _sort);
+                },
+                showSelectedIcon: false,
+                style: ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
             ],
@@ -79,8 +124,9 @@ class FindConsultantsTab extends ConsumerWidget {
                 );
               }
               return RefreshIndicator(
-                onRefresh: () =>
-                    ref.read(nearbyConsultantsProvider.notifier).load(),
+                onRefresh: () => ref
+                    .read(nearbyConsultantsProvider.notifier)
+                    .load(sort: _sort),
                 child: ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: consultants.length,
