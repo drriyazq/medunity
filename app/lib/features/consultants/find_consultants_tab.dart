@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../theme.dart';
+import '../../widgets/primary_role_pill.dart';
 import 'consultants_provider.dart';
 
 class FindConsultantsTab extends ConsumerStatefulWidget {
@@ -199,9 +200,21 @@ class _ConsultantCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(consultant['full_name'] as String,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 14)),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(consultant['full_name'] as String,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 14)),
+                      ),
+                      const SizedBox(width: 6),
+                      PrimaryRolePill(
+                        role: consultant['primary_role'] as String? ?? '',
+                        label: consultant['primary_role_display'] as String? ?? '',
+                      ),
+                    ],
+                  ),
                   Text(consultant['specialization'] as String,
                       style: const TextStyle(
                           fontSize: 12, color: MedUnityColors.primary)),

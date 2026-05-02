@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../theme.dart';
+import '../../widgets/primary_role_pill.dart';
 import 'associate_provider.dart';
 
 class FindAssociatesScreen extends ConsumerStatefulWidget {
@@ -216,9 +217,22 @@ class _AssociateCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 15)),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 15)),
+                          ),
+                          const SizedBox(width: 6),
+                          PrimaryRolePill(
+                            role: item['primary_role'] as String? ?? '',
+                            label:
+                                item['primary_role_display'] as String? ?? '',
+                          ),
+                        ],
+                      ),
                       Text('$spec${city.isNotEmpty ? " · $city" : ""}',
                           style: TextStyle(color: Colors.grey[700], fontSize: 12)),
                     ],

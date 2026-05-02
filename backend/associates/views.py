@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
-from accounts.models import MedicalProfessional
+from accounts.models import MedicalProfessional, ROLE_CHOICES as _ROLE_CHOICES_FOR_PILL
 from accounts.permissions import IsAdminVerified
 from medunity.fcm import send_push_notification
 
@@ -166,10 +166,16 @@ def search(request):
         if d > p.travel_radius_km:
             continue
         rating = _aggregate_rating(p.professional_id, context='associate')
+        prof = p.professional
         items.append({
             'professional_id': p.professional_id,
-            'full_name': p.professional.full_name,
-            'specialization_display': p.professional.get_specialization_display(),
+            'full_name': prof.full_name,
+            'specialization_display': prof.get_specialization_display(),
+            'primary_role': prof.primary_role or '',
+            'primary_role_display': (
+                dict(_ROLE_CHOICES_FOR_PILL).get(prof.primary_role, '')
+                if prof.primary_role else ''
+            ),
             'bio': p.bio,
             'slot_hours': p.slot_hours,
             'rate_per_slot': p.rate_per_slot,
@@ -181,7 +187,7 @@ def search(request):
             'avg_rating': rating['avg_rating'],
             'review_count': rating['review_count'],
             'profile_photo': (
-                p.professional.profile_photo.url if p.professional.profile_photo else None
+                prof.profile_photo.url if prof.profile_photo else None
             ),
         })
 

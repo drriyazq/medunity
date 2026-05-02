@@ -143,11 +143,17 @@ def my_availability(request):
 
 def _consultant_card(prof, distance_label: str) -> dict:
     """Privacy-safe public card — no exact distance, no last-seen."""
+    from accounts.models import ROLE_CHOICES
     return {
         'id': prof.pk,
         'full_name': prof.full_name,
         'specialization': prof.get_specialization_display(),
         'specialization_key': prof.specialization,
+        'primary_role': prof.primary_role or '',
+        'primary_role_display': (
+            dict(ROLE_CHOICES).get(prof.primary_role, '')
+            if prof.primary_role else ''
+        ),
         'distance_label': distance_label,
         'available_label': 'Available now',
         'profile_photo': prof.profile_photo.url if prof.profile_photo else None,
