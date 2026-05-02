@@ -12,6 +12,16 @@ BOOKING_STATUS = [
     ('cancelled', 'Cancelled'),
 ]
 
+MOBILITY_MODES = [
+    ('mobile', 'Mobile (move during the day)'),
+    ('stationary', 'Stationary (work from one place)'),
+]
+
+VISIBILITY_MODES = [
+    ('open', 'Open — visible to all matching doctors'),
+    ('allowlist', 'Allowlist — only my approved doctors can find me'),
+]
+
 
 class ConsultantAvailability(models.Model):
     """One row per consultant — upserted on toggle."""
@@ -22,6 +32,16 @@ class ConsultantAvailability(models.Model):
     available_since = models.DateTimeField(null=True, blank=True)
     lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    last_ping_at = models.DateTimeField(null=True, blank=True)
+    mobility_mode = models.CharField(
+        max_length=12, choices=MOBILITY_MODES, default='mobile'
+    )
+    travel_radius_km = models.PositiveSmallIntegerField(default=5)
+    # Weekly schedule — list of {day: 'mon'..'sun', start: 'HH:MM', end: 'HH:MM'}
+    working_schedule = models.JSONField(default=list, blank=True)
+    visibility_mode = models.CharField(
+        max_length=10, choices=VISIBILITY_MODES, default='open'
+    )
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -35,12 +55,50 @@ class ConsultantAvailability(models.Model):
             self.lat = lat
         if lng is not None:
             self.lng = lng
+        self.last_ping_at = timezone.now()
         self.save()
 
     def set_unavailable(self):
         self.is_available = False
         self.available_since = None
         self.save()
+
+
+class ConsultantBlocklist(models.Model):
+    """Doctors a consultant has refused — they will not see this consultant in search.
+    Populated via decline+block on incoming booking requests in Open mode."""
+    consultant = models.ForeignKey(
+        MedicalProfessional, on_delete=models.CASCADE, related_name='consultant_blocklist'
+    )
+    doctor = models.ForeignKey(
+        MedicalProfessional, on_delete=models.CASCADE, related_name='blocked_by_consultants'
+    )
+    blocked_at = models.DateTimeField(auto_now_add=True)
+    reason = models.CharField(max_length=200, blank=True)
+
+    class Meta:
+        unique_together = ('consultant', 'doctor')
+
+    def __str__(self):
+        return f"{self.consultant} blocks {self.doctor}"
+
+
+class ConsultantAllowlist(models.Model):
+    """Doctors a consultant has approved — only relevant when visibility_mode='allowlist'.
+    In allowlist mode, only doctors in this table see the consultant in search."""
+    consultant = models.ForeignKey(
+        MedicalProfessional, on_delete=models.CASCADE, related_name='consultant_allowlist'
+    )
+    doctor = models.ForeignKey(
+        MedicalProfessional, on_delete=models.CASCADE, related_name='allowed_by_consultants'
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('consultant', 'doctor')
+
+    def __str__(self):
+        return f"{self.consultant} allows {self.doctor}"
 
 
 class ConsultantBooking(models.Model):
