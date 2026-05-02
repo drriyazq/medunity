@@ -31,6 +31,7 @@ class _SelectRecipientsScreenState extends ConsumerState<SelectRecipientsScreen>
     final args = NearbyDoctorsArgs(
       widget.position.latitude,
       widget.position.longitude,
+      widget.category,
     );
     final async = ref.watch(nearbyDoctorsProvider(args));
 
@@ -52,8 +53,10 @@ class _SelectRecipientsScreenState extends ConsumerState<SelectRecipientsScreen>
             _initialised = true;
           }
 
+          final audienceLabel = data['audience_label'] as String? ?? '';
+
           if (doctors.isEmpty) {
-            return const _EmptyState();
+            return _EmptyState(audienceLabel: audienceLabel);
           }
 
           return Column(
@@ -63,6 +66,7 @@ class _SelectRecipientsScreenState extends ConsumerState<SelectRecipientsScreen>
                 radiusKm: radiusKm is num ? radiusKm.toDouble() : 0,
                 total: doctors.length,
                 selected: _selected.length,
+                audienceLabel: audienceLabel,
                 onSelectAll: () => setState(() {
                   _selected
                     ..clear()
@@ -150,6 +154,7 @@ class _Header extends StatelessWidget {
   final double radiusKm;
   final int total;
   final int selected;
+  final String audienceLabel;
   final VoidCallback onSelectAll;
   final VoidCallback onClearAll;
 
@@ -158,6 +163,7 @@ class _Header extends StatelessWidget {
     required this.radiusKm,
     required this.total,
     required this.selected,
+    required this.audienceLabel,
     required this.onSelectAll,
     required this.onClearAll,
   });
@@ -179,7 +185,17 @@ class _Header extends StatelessWidget {
               color: MedUnityColors.sos,
             ),
           ),
-          const SizedBox(height: 2),
+          if (audienceLabel.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              audienceLabel,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: MedUnityColors.sos.withOpacity(0.85)),
+            ),
+          ],
+          const SizedBox(height: 4),
           Text(
             '$total doctor${total == 1 ? '' : 's'} found within ${radiusKm.toStringAsFixed(1)} km. '
             'Untick anyone you do not want to alert.',
@@ -202,7 +218,8 @@ class _Header extends StatelessWidget {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final String audienceLabel;
+  const _EmptyState({this.audienceLabel = ''});
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
@@ -213,10 +230,21 @@ class _EmptyState extends StatelessWidget {
               const Icon(Icons.location_off, size: 56, color: MedUnityColors.textSecondary),
               const SizedBox(height: 12),
               const Text(
-                'No nearby doctors found within 5 km.',
+                'No matching doctors found within 5 km.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15),
               ),
+              if (audienceLabel.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  audienceLabel,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: MedUnityColors.sos.withOpacity(0.85)),
+                ),
+              ],
               const SizedBox(height: 8),
               Text(
                 'SOS cannot be sent if no one is in range.',

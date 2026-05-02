@@ -10,7 +10,15 @@ from accounts.models import DeviceToken
 from accounts.permissions import IsAdminVerified
 from medunity.fcm import send_push_notification
 
+from .category_recipients import (
+    category_audience_label,
+    filtered_clinics_for_sos,
+)
 from .models import SosAlert, SosRecipient, SosResponse, find_nearby_clinics, haversine_km
+
+VALID_SOS_CATEGORIES = (
+    'medical_emergency', 'legal_issue', 'clinic_threat', 'urgent_clinical',
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +60,11 @@ def send_sos(request):
 
     # Find nearby clinics (auto-expand 1 → 2 → 5 km)
     clinics, radius_used = find_nearby_clinics(lat, lng, prof.id)
+
+    # Per-category filter (defense in depth — picker also enforces this).
+    # Dentists won't get medical emergencies; urgent_clinical stays inside
+    # the sender's specialty cluster; legal/clinic_threat is unfiltered.
+    clinics = filtered_clinics_for_sos(category, prof, clinics)
 
     # Optional: caller picks a subset of recipients (privacy control).
     # If recipient_ids omitted, fall back to broadcasting to all nearby (legacy).
@@ -155,6 +168,15 @@ def nearby_doctors(request):
         )
 
     clinics, radius_km = find_nearby_clinics(lat, lng, prof.id)
+
+    # Apply category filter when provided. Older clients that omit `category`
+    # see all nearby doctors as before — keeps back-compat.
+    category = request.query_params.get('category', '').strip()
+    audience_label = ''
+    if category in VALID_SOS_CATEGORIES:
+        clinics = filtered_clinics_for_sos(category, prof, clinics)
+        audience_label = category_audience_label(category, prof)
+
     doctors = []
     for c in clinics:
         owner = c.owner
@@ -171,7 +193,11 @@ def nearby_doctors(request):
             'distance_km': round(haversine_km(lat, lng, c.lat, c.lng), 2),
         })
     doctors.sort(key=lambda d: d['distance_km'])
-    return Response({'doctors': doctors, 'radius_km': radius_km})
+    return Response({
+        'doctors': doctors,
+        'radius_km': radius_km,
+        'audience_label': audience_label,
+    })
 
 
 @api_view(['POST'])

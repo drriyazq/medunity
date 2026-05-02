@@ -122,12 +122,21 @@ final sosStatusProvider = StateNotifierProvider.autoDispose
 class NearbyDoctorsArgs {
   final double lat;
   final double lng;
-  const NearbyDoctorsArgs(this.lat, this.lng);
+  /// Backend SOS category — drives the category-based recipient filter
+  /// (urgent_clinical = same specialty cluster, medical_emergency excludes
+  /// dentists, legal_issue + clinic_threat = no filter).
+  final String category;
+
+  const NearbyDoctorsArgs(this.lat, this.lng, this.category);
+
   @override
   bool operator ==(Object other) =>
-      other is NearbyDoctorsArgs && other.lat == lat && other.lng == lng;
+      other is NearbyDoctorsArgs &&
+      other.lat == lat &&
+      other.lng == lng &&
+      other.category == category;
   @override
-  int get hashCode => Object.hash(lat, lng);
+  int get hashCode => Object.hash(lat, lng, category);
 }
 
 final nearbyDoctorsProvider = FutureProvider.autoDispose
@@ -136,6 +145,7 @@ final nearbyDoctorsProvider = FutureProvider.autoDispose
   final resp = await dio.get('/sos/nearby-doctors/', queryParameters: {
     'lat': args.lat,
     'lng': args.lng,
+    if (args.category.isNotEmpty) 'category': args.category,
   });
   return Map<String, dynamic>.from(resp.data as Map);
 });
