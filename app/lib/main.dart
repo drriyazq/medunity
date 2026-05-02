@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
 import 'data/local/hive_setup.dart';
+import 'services/consultant_live_service.dart';
+import 'services/consultant_schedule_alarm.dart';
 import 'services/push_service.dart';
 
 @pragma('vm:entry-point')
@@ -30,5 +32,10 @@ Future<void> main() async {
   await HiveSetup.init();
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
   await PushService.init();
+
+  // Live-location consultants — configure (does not start the service).
+  await ConsultantLiveService.initialize();
+  await ConsultantScheduleAlarm.initialize();
+
   runApp(const ProviderScope(child: MedUnityApp()));
 }

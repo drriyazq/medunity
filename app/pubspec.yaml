@@ -35,6 +35,10 @@ dependencies:
   geocoding: ^3.0.0
   permission_handler: ^11.3.1
 
+  # Background services & alarms (consultants live-location)
+  flutter_background_service: ^5.0.10
+  android_alarm_manager_plus: ^4.0.4
+
   # Utilities
   intl: ^0.19.0
 
