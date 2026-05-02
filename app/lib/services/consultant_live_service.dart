@@ -24,7 +24,7 @@ const _kApiBaseUrl = String.fromEnvironment(
 /// Foreground service that pings the server with the consultant's GPS while
 /// Go Live is ON. Runs in a separate Dart isolate — must re-init Hive itself.
 class ConsultantLiveService {
-  static const _service = FlutterBackgroundService();
+  static final _service = FlutterBackgroundService();
 
   static Future<void> initialize() async {
     await _service.configure(

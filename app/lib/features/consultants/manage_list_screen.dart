@@ -22,9 +22,9 @@ class _ManageListScreenState extends ConsumerState<ManageListScreen> {
     super.dispose();
   }
 
-  StateNotifierProvider<ConsultantListNotifier,
-      AsyncValue<List<Map<String, dynamic>>>> get _provider =>
-      widget.kind == ConsultantListKind.blocklist
+  AutoDisposeStateNotifierProvider<ConsultantListNotifier,
+          AsyncValue<List<Map<String, dynamic>>>>
+      get _provider => widget.kind == ConsultantListKind.blocklist
           ? blocklistProvider
           : allowlistProvider;
 

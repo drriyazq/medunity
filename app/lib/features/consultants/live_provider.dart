@@ -107,7 +107,10 @@ final allowlistProvider = StateNotifierProvider.autoDispose<
 
 // ── Phone lookup ──────────────────────────────────────────────────────────────
 
-Future<Map<String, dynamic>?> lookupDoctorByPhone(Ref ref, String phone) async {
+/// Look up a verified doctor by phone — used by the allowlist/blocklist UI.
+/// Accepts WidgetRef so callers in Consumer widgets can pass `ref` directly.
+Future<Map<String, dynamic>?> lookupDoctorByPhone(
+    WidgetRef ref, String phone) async {
   final dio = ref.read(dioProvider);
   try {
     final resp = await dio.get('/consultants/lookup-by-phone/',
