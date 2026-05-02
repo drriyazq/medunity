@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +14,27 @@ import '../equipment/equipment_provider.dart';
 import '../profile/set_clinic_location.dart';
 import '../support/support_provider.dart';
 import 'nearby_clinics_provider.dart';
+
+/// Bump on every pull-to-refresh so the rotating-pair widget reshuffles.
+/// Initial seed comes from DateTime so the first build is already random.
+final _homeRotationSeedProvider = StateProvider<int>((ref) {
+  return DateTime.now().microsecondsSinceEpoch;
+});
+
+/// Available associates near my clinic — drives the "Associates Available"
+/// preview AND feeds the rotating-pair empty-skip logic.
+final _homeAssociatesPreviewProvider =
+    FutureProvider.autoDispose<List<Map<String, dynamic>>>((ref) async {
+  final dio = ref.read(dioProvider);
+  try {
+    final resp = await dio.get('/associates/search/');
+    return ((resp.data['associates'] as List?) ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+  } catch (_) {
+    return const <Map<String, dynamic>>[];
+  }
+});
 
 /// Pulls the user's primary role for role-driven Home rendering. Cached for
 /// the session so the Home doesn't churn between rebuilds.
@@ -75,6 +98,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           ref.invalidate(_primaryRoleProvider);
           ref.invalidate(nearbyClinicsProvider);
           ref.invalidate(nearbyCirclesProvider);
+          ref.invalidate(_homeAssociatesPreviewProvider);
+          // Bump the seed so the rotating pair re-shuffles to a new pair.
+          ref.read(_homeRotationSeedProvider.notifier).state =
+              DateTime.now().microsecondsSinceEpoch;
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -490,11 +517,11 @@ class _RoleDrivenHomeSections extends ConsumerWidget {
     final primary = ref.watch(_primaryRoleProvider).valueOrNull ?? '';
 
     final sections = switch (primary) {
-      'clinic_owner' => const [_PoolsPreview(), _ListingsPreview()],
-      'hospital_owner' => const [
-          _ConsultantsLivePreview(),
-          _AvailableAssociatesPreview(),
-        ],
+      // Clinic + Hospital owners share a rotating pool of 5 sections — see
+      // _ClinicHospitalRotatingPair. 2 picked on each Home mount and on
+      // pull-to-refresh, preferring non-empty.
+      'clinic_owner' || 'hospital_owner' =>
+        const [_ClinicHospitalRotatingPair()],
       'visiting_consultant' => const [
           _NearbyClinicsPreview(),
           _CirclesPreview(),
@@ -741,32 +768,22 @@ class _AvailableAssociatesPreview extends ConsumerWidget {
   const _AvailableAssociatesPreview();
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Reuses the same /associates/search/ endpoint as the Find tab. The
-    // searcher's clinic GPS comes from the server side so we don't need to
-    // pass lat/lng from the home preview.
-    final dio = ref.watch(dioProvider);
+    final async = ref.watch(_homeAssociatesPreviewProvider);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _PreviewHeader(title: 'Associates Available', seeAllPath: '/associates'),
+        const _PreviewHeader(
+            title: 'Associate Dentists Looking for Work',
+            seeAllPath: '/associates'),
         const SizedBox(height: 8),
-        FutureBuilder<List<Map<String, dynamic>>>(
-          future: () async {
-            try {
-              final resp = await dio.get('/associates/search/');
-              final items = (resp.data['associates'] as List? ?? []);
-              return items.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-            } catch (_) {
-              return const <Map<String, dynamic>>[];
-            }
-          }(),
-          builder: (_, snap) {
-            if (snap.connectionState != ConnectionState.done) {
-              return const LinearProgressIndicator();
-            }
-            final list = snap.data ?? const <Map<String, dynamic>>[];
+        async.when(
+          loading: () => const LinearProgressIndicator(),
+          error: (_, __) => _emptyTile('Set your clinic location to find associates.'),
+          data: (list) {
             final preview = list.take(3).toList();
-            if (preview.isEmpty) return _emptyTile('No associates available nearby right now.');
+            if (preview.isEmpty) {
+              return _emptyTile('No associates available nearby right now.');
+            }
             return Column(children: preview.map(_DoctorMiniCard.new).toList());
           },
         ),
@@ -1034,3 +1051,129 @@ class _DoctorMiniCard extends StatelessWidget {
   }
 }
 
+
+// ── Rotating pair for clinic_owner + hospital_owner ──────────────────────────
+//
+// Pool of 5 preview sections — Co-Purchase, Marketplace, Live Consultants,
+// Available Associates, Practice Support. On each Home mount + every
+// pull-to-refresh, picks 2 at random, preferring sections that have data.
+// Keeps shuffle order stable through scroll/rebuild via state — only
+// changes when the user actually moves to a fresh Home or pulls to refresh.
+
+class _ClinicHospitalRotatingPair extends ConsumerStatefulWidget {
+  const _ClinicHospitalRotatingPair();
+
+  @override
+  ConsumerState<_ClinicHospitalRotatingPair> createState() =>
+      _ClinicHospitalRotatingPairState();
+}
+
+class _ClinicHospitalRotatingPairState
+    extends ConsumerState<_ClinicHospitalRotatingPair> {
+  /// Stable shuffle order for this Home mount. Re-derived only when the
+  /// rotation seed changes (pull-to-refresh).
+  late List<int> _shuffleOrder;
+  int? _lastSeed;
+
+  /// Pool entry: id (for tracking), builder, and an emptiness check that
+  /// reads the relevant provider via the captured ref. `loading` is treated
+  /// as non-empty so we don't skip a section just because it hasn't loaded.
+  late final List<({String id, Widget Function() build, bool Function() isEmpty})>
+      _pool = [
+    (
+      id: 'pools',
+      build: () => const _PoolsPreview(),
+      isEmpty: () {
+        final v = ref.read(poolsProvider);
+        return v.hasValue && (v.valueOrNull ?? []).isEmpty;
+      },
+    ),
+    (
+      id: 'listings',
+      build: () => const _ListingsPreview(),
+      isEmpty: () {
+        final v = ref.read(listingsProvider);
+        return v.hasValue && (v.valueOrNull ?? []).isEmpty;
+      },
+    ),
+    (
+      id: 'consultants',
+      build: () => const _ConsultantsLivePreview(),
+      isEmpty: () {
+        final v = ref.read(nearbyConsultantsProvider);
+        return v.hasValue && (v.valueOrNull ?? []).isEmpty;
+      },
+    ),
+    (
+      id: 'associates',
+      build: () => const _AvailableAssociatesPreview(),
+      isEmpty: () {
+        final v = ref.read(_homeAssociatesPreviewProvider);
+        return v.hasValue && (v.valueOrNull ?? []).isEmpty;
+      },
+    ),
+    (
+      id: 'support',
+      build: () => const _CoverageSection(),
+      isEmpty: () {
+        final v = ref.read(requestsProvider);
+        return v.hasValue && (v.valueOrNull ?? []).isEmpty;
+      },
+    ),
+  ];
+
+  void _reshuffle(int seed) {
+    final rng = Random(seed);
+    _shuffleOrder = List<int>.generate(_pool.length, (i) => i)..shuffle(rng);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _reshuffle(ref.read(_homeRotationSeedProvider));
+    _lastSeed = ref.read(_homeRotationSeedProvider);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Re-shuffle when the seed bumps (pull-to-refresh).
+    final seed = ref.watch(_homeRotationSeedProvider);
+    if (seed != _lastSeed) {
+      _reshuffle(seed);
+      _lastSeed = seed;
+    }
+
+    // Watch all 5 providers so empty-skipping reacts as data loads.
+    ref.watch(poolsProvider);
+    ref.watch(listingsProvider);
+    ref.watch(nearbyConsultantsProvider);
+    ref.watch(_homeAssociatesPreviewProvider);
+    ref.watch(requestsProvider);
+
+    // Pick first 2 non-empty in shuffle order. If fewer than 2 non-empty
+    // exist, fill the gap with whatever's next so the user always sees 2.
+    final picked = <int>[];
+    for (final i in _shuffleOrder) {
+      if (!_pool[i].isEmpty()) picked.add(i);
+      if (picked.length >= 2) break;
+    }
+    if (picked.length < 2) {
+      for (final i in _shuffleOrder) {
+        if (!picked.contains(i)) {
+          picked.add(i);
+          if (picked.length >= 2) break;
+        }
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < picked.length; i++) ...[
+          if (i > 0) const SizedBox(height: 20),
+          _pool[picked[i]].build(),
+        ],
+      ],
+    );
+  }
+}
