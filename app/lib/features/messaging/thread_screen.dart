@@ -26,6 +26,45 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
     super.dispose();
   }
 
+  Future<void> _confirmDeleteMessage(Map<String, dynamic> message) async {
+    final ok = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.delete_outline, color: Colors.red),
+                title: const Text('Delete for me',
+                    style: TextStyle(color: Colors.red)),
+                subtitle: const Text(
+                    'Removes this message from your view. The other person '
+                    'still sees it on their side.'),
+                onTap: () => Navigator.pop(sheetCtx, true),
+              ),
+              ListTile(
+                leading: const Icon(Icons.close),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.pop(sheetCtx, false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (ok != true) return;
+    final success = await ref
+        .read(threadDetailProvider(widget.threadId).notifier)
+        .deleteMessage(message['id'] as int);
+    if (!success && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete message.')),
+      );
+    }
+  }
+
   Future<void> _send() async {
     final text = _composer.text.trim();
     if (text.isEmpty || _sending) return;
@@ -123,7 +162,10 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
                   itemCount: d.messages.length,
                   itemBuilder: (_, i) {
                     final m = d.messages[i];
-                    return _MessageBubble(message: m);
+                    return _MessageBubble(
+                      message: m,
+                      onLongPress: () => _confirmDeleteMessage(m),
+                    );
                   },
                 );
               },
@@ -142,7 +184,11 @@ class _ThreadScreenState extends ConsumerState<ThreadScreen> {
 
 class _MessageBubble extends StatelessWidget {
   final Map<String, dynamic> message;
-  const _MessageBubble({required this.message});
+  final VoidCallback onLongPress;
+  const _MessageBubble({
+    required this.message,
+    required this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -169,23 +215,26 @@ class _MessageBubble extends StatelessWidget {
               crossAxisAlignment:
                   isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: bubbleColor,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft:
-                          isMine ? const Radius.circular(16) : Radius.zero,
-                      bottomRight:
-                          isMine ? Radius.zero : const Radius.circular(16),
+                GestureDetector(
+                  onLongPress: onLongPress,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: bubbleColor,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft:
+                            isMine ? const Radius.circular(16) : Radius.zero,
+                        bottomRight:
+                            isMine ? Radius.zero : const Radius.circular(16),
+                      ),
                     ),
-                  ),
-                  child: Text(
-                    body,
-                    style: TextStyle(color: textColor, fontSize: 14),
+                    child: Text(
+                      body,
+                      style: TextStyle(color: textColor, fontSize: 14),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 2),

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../data/api/client.dart';
 import '../../theme.dart';
+import '../messaging/messaging_provider.dart';
 import 'support_provider.dart';
 
 class RequestsTab extends ConsumerStatefulWidget {
@@ -22,35 +23,39 @@ class _RequestsTabState extends ConsumerState<RequestsTab> {
 
     return Column(
       children: [
-        // Type filter
+        // Type filter — 4 chips, horizontally scrollable so they don't squeeze
+        // labels at large font scales.
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-          child: Row(
-            children: [
-              Expanded(
-                child: _TypeChip(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _TypeChip(
                   label: 'All',
                   selected: _type == '',
                   onTap: () { setState(() => _type = ''); ref.read(requestsProvider.notifier).load(); },
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _TypeChip(
+                const SizedBox(width: 8),
+                _TypeChip(
                   label: '🏥 Coverage',
                   selected: _type == 'coverage',
                   onTap: () { setState(() => _type = 'coverage'); ref.read(requestsProvider.notifier).load(type: 'coverage'); },
                 ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _TypeChip(
+                const SizedBox(width: 8),
+                _TypeChip(
                   label: '🏢 Space',
                   selected: _type == 'space_lending',
                   onTap: () { setState(() => _type = 'space_lending'); ref.read(requestsProvider.notifier).load(type: 'space_lending'); },
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                _TypeChip(
+                  label: '👨‍⚕️ Find Associate',
+                  selected: _type == 'find_associate',
+                  onTap: () { setState(() => _type = 'find_associate'); ref.read(requestsProvider.notifier).load(type: 'find_associate'); },
+                ),
+              ],
+            ),
           ),
         ),
 
@@ -163,6 +168,11 @@ class _RequestCardState extends State<_RequestCard> {
   static const _typeConfig = {
     'coverage': (icon: Icons.swap_horiz, color: Colors.blue, label: 'Patient Coverage'),
     'space_lending': (icon: Icons.business, color: Colors.teal, label: 'Space Lending'),
+    'find_associate': (
+      icon: Icons.medical_services_outlined,
+      color: Color(0xFF8E24AA),
+      label: 'Find Associate',
+    ),
   };
 
   Future<void> _accept() async {
@@ -268,17 +278,37 @@ class _RequestCardState extends State<_RequestCard> {
           if (_acting)
             const LinearProgressIndicator()
           else if (status == 'open') ...[
-            if (!isMine)
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _accept,
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[600], foregroundColor: Colors.white),
-                  child: const Text('I Can Help'),
+            if (!isMine) ...[
+              if (type == 'find_associate')
+                // Find-Associate posts go straight to chat — clinics want to
+                // vet associates before "accepting" anyone.
+                SizedBox(
+                  width: double.infinity,
+                  child: _MessageRequesterButton(
+                    profId: widget.request['requester_id'] as int?,
+                    label: 'Message Clinic',
+                  ),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: _accept,
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green[600],
+                            foregroundColor: Colors.white),
+                        child: const Text('I Can Help'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _MessageRequesterButton(
+                      profId: widget.request['requester_id'] as int?,
+                      label: 'Message',
+                    ),
+                  ],
                 ),
-              )
-            else
+            ] else
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
@@ -410,15 +440,21 @@ class _CreateRequestSheetState extends State<_CreateRequestSheet> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
 
-              // Type
-              Row(
-                children: [
-                  Expanded(child: _TypeChip(label: '🏥 Patient Coverage', selected: _type == 'coverage',
-                      onTap: () => setState(() => _type = 'coverage'))),
-                  const SizedBox(width: 8),
-                  Expanded(child: _TypeChip(label: '🏢 Space Lending', selected: _type == 'space_lending',
-                      onTap: () => setState(() => _type = 'space_lending'))),
-                ],
+              // Type — 3 options, horizontally scrollable so labels don't clip.
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _TypeChip(label: '🏥 Patient Coverage', selected: _type == 'coverage',
+                        onTap: () => setState(() => _type = 'coverage')),
+                    const SizedBox(width: 8),
+                    _TypeChip(label: '🏢 Space Lending', selected: _type == 'space_lending',
+                        onTap: () => setState(() => _type = 'space_lending')),
+                    const SizedBox(width: 8),
+                    _TypeChip(label: '👨‍⚕️ Find Associate', selected: _type == 'find_associate',
+                        onTap: () => setState(() => _type = 'find_associate')),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
 
@@ -475,6 +511,56 @@ class _CreateRequestSheetState extends State<_CreateRequestSheet> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _MessageRequesterButton extends ConsumerStatefulWidget {
+  final int? profId;
+  final String label;
+  const _MessageRequesterButton({required this.profId, required this.label});
+
+  @override
+  ConsumerState<_MessageRequesterButton> createState() =>
+      _MessageRequesterButtonState();
+}
+
+class _MessageRequesterButtonState
+    extends ConsumerState<_MessageRequesterButton> {
+  bool _busy = false;
+
+  Future<void> _open() async {
+    if (_busy || widget.profId == null) return;
+    setState(() => _busy = true);
+    final id = await startThreadWith(ref, widget.profId!);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (id != null) {
+      context.push('/messages/$id');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open conversation.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _busy || widget.profId == null ? null : _open,
+      icon: _busy
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.chat_bubble_outline, size: 16),
+      label: Text(widget.label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: MedUnityColors.primary,
+        side: const BorderSide(color: MedUnityColors.primary),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       ),
     );
   }

@@ -45,12 +45,44 @@ class MessagesTab extends ConsumerWidget {
   }
 }
 
-class _ThreadRow extends StatelessWidget {
+class _ThreadRow extends ConsumerWidget {
   final Map<String, dynamic> thread;
   const _ThreadRow({required this.thread});
 
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final other = (thread['other'] as Map?) ?? const {};
+    final name = other['full_name'] as String? ?? 'this conversation';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Delete conversation?'),
+        content: Text(
+          'This removes "$name" from your inbox only. They will still see '
+          'the messages on their side. New messages from them bring the '
+          'conversation back.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(_, false),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(_, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final success = await deleteThreadForMe(ref, thread['id'] as int);
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not delete conversation.')),
+      );
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final other = (thread['other'] as Map?) ?? const {};
     final name = other['full_name'] as String? ?? 'Unknown';
     final spec = other['specialization_display'] as String? ?? '';
@@ -69,6 +101,7 @@ class _ThreadRow extends StatelessWidget {
 
     return InkWell(
       onTap: () => context.push('/messages/${thread['id']}'),
+      onLongPress: () => _confirmDelete(context, ref),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

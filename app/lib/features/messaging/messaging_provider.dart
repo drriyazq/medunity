@@ -151,6 +151,43 @@ class ThreadDetailNotifier extends StateNotifier<AsyncValue<ThreadDetail>> {
       // Silent — read state is best-effort.
     }
   }
+
+  /// Soft-delete a single message for me only. Other side still sees it.
+  Future<bool> deleteMessage(int messageId) async {
+    final dio = _ref.read(dioProvider);
+    try {
+      await dio.delete(
+          '/messages/threads/$threadId/messages/$messageId/delete/');
+      final detail = state.valueOrNull;
+      if (detail != null) {
+        state = AsyncValue.data(detail.copyWith(
+          messages: detail.messages
+              .where((m) => m['id'] != messageId)
+              .toList(),
+        ));
+      }
+      // Refresh inbox so the last-message preview updates if we just
+      // deleted the most recent message.
+      _ref.read(threadsProvider.notifier).load();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+}
+
+/// Soft-delete the whole thread for me only. Server keeps the row; the
+/// thread reappears in my inbox if the other side messages again.
+Future<bool> deleteThreadForMe(WidgetRef ref, int threadId) async {
+  final dio = ref.read(dioProvider);
+  try {
+    await dio.delete('/messages/threads/$threadId/delete/');
+    ref.read(threadsProvider.notifier).load();
+    ref.invalidate(messagesUnreadCountProvider);
+    return true;
+  } catch (_) {
+    return false;
+  }
 }
 
 final threadDetailProvider = StateNotifierProvider.autoDispose
