@@ -4,6 +4,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
@@ -32,6 +33,23 @@ Future<void> main() async {
   await HiveSetup.init();
   FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
   await PushService.init();
+
+  // Pre-create the foreground-service notification channel — MIUI / Android 13+
+  // reject startForeground() if the channel isn't registered with an explicit
+  // importance level.
+  final flnp = FlutterLocalNotificationsPlugin();
+  await flnp
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          'medunity_consultant_live',
+          'MedUnity Live Location',
+          description:
+              'Sharing your location with nearby doctors and clinics while Go Live is on.',
+          importance: Importance.low,
+        ),
+      );
 
   // Live-location consultants — configure (does not start the service).
   await ConsultantLiveService.initialize();
