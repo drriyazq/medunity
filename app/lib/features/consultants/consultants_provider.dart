@@ -54,15 +54,13 @@ class NearbyConsultantsNotifier
     load();
   }
 
-  Future<void> load({String? specialization, double radiusKm = 10}) async {
+  Future<void> load() async {
     state = const AsyncValue.loading();
     final dio = _ref.read(dioProvider);
     try {
-      final resp = await dio.get('/consultants/nearby/', queryParameters: {
-        'radius_km': radiusKm,
-        if (specialization != null && specialization.isNotEmpty)
-          'specialization': specialization,
-      });
+      // Server now filters by specialty mapping + per-consultant radius.
+      // No client-side params needed.
+      final resp = await dio.get('/consultants/nearby/');
       final list = (resp.data as List).cast<Map<String, dynamic>>();
       state = AsyncValue.data(list);
     } catch (e, st) {

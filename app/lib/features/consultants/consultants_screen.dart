@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../theme.dart';
-import 'availability_toggle.dart';
 import 'bookings_tab.dart';
 import 'consultants_provider.dart';
 import 'find_consultants_tab.dart';
@@ -48,18 +48,19 @@ class _AvailabilityChip extends ConsumerWidget {
     final isAvailable = async.valueOrNull?['is_available'] as bool? ?? false;
 
     return GestureDetector(
-      onTap: () => showAvailabilityToggle(context, ref),
+      onTap: () => context.push('/consultants/go-live'),
       child: Chip(
         avatar: Icon(
-          isAvailable ? Icons.circle : Icons.circle_outlined,
-          size: 12,
+          isAvailable ? Icons.gps_fixed : Icons.gps_off,
+          size: 14,
           color: isAvailable ? Colors.green : Colors.grey,
         ),
         label: Text(
-          isAvailable ? 'Available' : 'Unavailable',
+          isAvailable ? 'LIVE' : 'Go Live',
           style: TextStyle(
             fontSize: 12,
-            color: isAvailable ? Colors.green[700] : Colors.grey[600],
+            fontWeight: FontWeight.bold,
+            color: isAvailable ? Colors.green[700] : Colors.grey[700],
           ),
         ),
         backgroundColor: isAvailable

@@ -12,6 +12,12 @@ import 'features/circles/circles_screen.dart';
 import 'features/circles/post_detail_screen.dart';
 import 'features/consultants/consultant_profile_screen.dart';
 import 'features/consultants/consultants_screen.dart';
+import 'features/consultants/go_live_screen.dart';
+import 'features/consultants/live_consent_screen.dart';
+import 'features/consultants/live_provider.dart';
+import 'features/consultants/manage_list_screen.dart';
+import 'features/consultants/schedule_editor_screen.dart';
+import 'features/consultants/visibility_settings_screen.dart';
 import 'features/equipment/equipment_screen.dart';
 import 'features/equipment/listing_detail_screen.dart';
 import 'features/equipment/my_listings_screen.dart';
@@ -141,6 +147,31 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/consultants/profile/:id',
         builder: (_, state) =>
             ConsultantProfileScreen(profId: int.parse(state.pathParameters['id']!)),
+      ),
+      GoRoute(
+        path: '/consultants/go-live',
+        builder: (_, __) => const GoLiveScreen(),
+      ),
+      GoRoute(
+        path: '/consultants/schedule-editor',
+        builder: (_, __) => const ScheduleEditorScreen(),
+      ),
+      GoRoute(
+        path: '/consultants/visibility-settings',
+        builder: (_, __) => const VisibilitySettingsScreen(),
+      ),
+      GoRoute(
+        path: '/consultants/manage-list/:kind',
+        builder: (_, state) {
+          final kind = state.pathParameters['kind'] == 'allowlist'
+              ? ConsultantListKind.allowlist
+              : ConsultantListKind.blocklist;
+          return ManageListScreen(kind: kind);
+        },
+      ),
+      GoRoute(
+        path: '/consultants/live-consent',
+        builder: (_, __) => const LiveConsentScreen(),
       ),
 
       // ── Circles routes (outside shell) ─────────────────────────────────────
