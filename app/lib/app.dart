@@ -304,15 +304,21 @@ class MedUnityApp extends ConsumerWidget {
     // server still says they're live but the persistent notification + 10-min
     // pings silently disappear until they manually toggle off+on.
     //
-    // fireImmediately so cold starts also fire — without it, if the cached
-    // auth state is already `verified` by the time MedUnityApp first builds,
-    // the listener never sees a transition and bootstrap silently never runs.
+    // Two paths cover both cold-start (already verified at first build) and
+    // sign-in transitions. The bootstrap call itself is idempotent + guarded
+    // against in-flight repeats, so calling it from both paths is safe.
     ref.listen(authProvider, (prev, next) {
       if (next.status == AuthStatus.verified) {
         final token = HiveSetup.sessionBox.get('access_token') as String?;
         if (token != null) ConsultantLiveService.bootstrapIfLive(token);
       }
-    }, fireImmediately: true);
+    });
+    // Cold-start path — Riverpod 2.x has no fireImmediately, so read once.
+    final initialAuth = ref.read(authProvider);
+    if (initialAuth.status == AuthStatus.verified) {
+      final token = HiveSetup.sessionBox.get('access_token') as String?;
+      if (token != null) ConsultantLiveService.bootstrapIfLive(token);
+    }
     setPushNavigate((path) => router.push(path));
     setPushOnSosResponse((alertId) {
       // Force refresh of an open status screen + dashboard.

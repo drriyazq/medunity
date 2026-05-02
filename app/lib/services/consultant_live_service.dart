@@ -26,6 +26,11 @@ const _kApiBaseUrl = String.fromEnvironment(
 class ConsultantLiveService {
   static final _service = FlutterBackgroundService();
 
+  /// Guards against repeat bootstrap network calls during widget rebuilds.
+  /// Reset by [stop] so the next Go Live → Bootstrap cycle works.
+  static bool _bootstrapInFlight = false;
+  static bool _bootstrapDone = false;
+
   static Future<void> initialize() async {
     await _service.configure(
       androidConfiguration: AndroidConfiguration(
@@ -79,6 +84,8 @@ class ConsultantLiveService {
   static Future<void> stop() async {
     final running = await _service.isRunning();
     if (running) _service.invoke('stopService');
+    // Allow bootstrap to attempt again next time Go Live flips on.
+    _bootstrapDone = false;
   }
 
   static Future<bool> isRunning() => _service.isRunning();
@@ -90,8 +97,13 @@ class ConsultantLiveService {
   ///
   /// Silent on every failure — never blocks app boot.
   static Future<void> bootstrapIfLive(String authToken) async {
+    if (_bootstrapInFlight || _bootstrapDone) return;
+    _bootstrapInFlight = true;
     try {
-      if (await _service.isRunning()) return;
+      if (await _service.isRunning()) {
+        _bootstrapDone = true;
+        return;
+      }
 
       final dio = Dio(BaseOptions(
         baseUrl: _kApiBaseUrl,
@@ -114,6 +126,7 @@ class ConsultantLiveService {
       // drop the foreground notification, which is exactly the bug we hit.
       final mobility = (data['mobility_mode'] as String?) ?? 'mobile';
       await start(mobilityMode: mobility);
+      _bootstrapDone = true;
       if (kDebugMode) {
         // ignore: avoid_print
         print('[ConsultantLiveService] bootstrap → started in $mobility mode');
@@ -123,6 +136,8 @@ class ConsultantLiveService {
         // ignore: avoid_print
         print('[ConsultantLiveService] bootstrap failed: $e');
       }
+    } finally {
+      _bootstrapInFlight = false;
     }
   }
 }
