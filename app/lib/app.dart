@@ -24,6 +24,9 @@ import 'features/equipment/listing_detail_screen.dart';
 import 'features/equipment/my_listings_screen.dart';
 import 'features/equipment/pool_detail_screen.dart';
 import 'features/home_screen/home_screen.dart';
+import 'features/messaging/messages_tab.dart';
+import 'features/messaging/messaging_provider.dart';
+import 'features/messaging/thread_screen.dart';
 import 'features/profile/profile_screen.dart';
 import 'features/support/leaderboard_screen.dart';
 import 'features/support/support_screen.dart';
@@ -268,15 +271,27 @@ final routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
 
+      // ── Messaging routes (thread view sits outside shell) ──────────────────
+      GoRoute(
+        path: '/messages/:threadId',
+        builder: (_, state) => ThreadScreen(
+          threadId: int.parse(state.pathParameters['threadId']!),
+        ),
+      ),
+
       // ── Home shell ──────────────────────────────────────────────────────────
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
         routes: [
           GoRoute(path: '/home', builder: (_, __) => const HomeScreen()),
-          GoRoute(path: '/circles', builder: (_, __) => const CirclesScreen()),
+          GoRoute(path: '/messages', builder: (_, __) => const MessagesTab()),
           GoRoute(path: '/consultants', builder: (_, __) => const ConsultantsScreen()),
           GoRoute(path: '/marketplace', builder: (_, __) => const EquipmentScreen()),
           GoRoute(path: '/profile', builder: (_, __) => const ProfileScreen()),
+          // Circles is no longer in the bottom nav (replaced by Messages), but
+          // we keep the path on the shell so the Quick Nav row entry still
+          // works without duplicating the back-button behaviour.
+          GoRoute(path: '/circles', builder: (_, __) => const CirclesScreen()),
         ],
       ),
     ],
@@ -334,6 +349,12 @@ class MedUnityApp extends ConsumerWidget {
       ref.invalidate(associateBookingDetailProvider(bookingId));
       ref.invalidate(myAssociateBookingsProvider('clinic'));
       ref.invalidate(myAssociateBookingsProvider('associate'));
+    });
+    setPushOnDirectMessage((threadId) {
+      // New direct message — refresh inbox + open thread + bump unread badge.
+      ref.read(threadsProvider.notifier).load();
+      ref.invalidate(threadDetailProvider(threadId));
+      ref.invalidate(messagesUnreadCountProvider);
     });
     return MaterialApp.router(
       title: 'MedUnity',

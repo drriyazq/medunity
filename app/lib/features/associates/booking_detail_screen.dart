@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../data/api/client.dart';
 import '../../theme.dart';
+import '../messaging/messaging_provider.dart';
 import 'associate_provider.dart';
 import 'rate_doctor_sheet.dart';
 
@@ -161,16 +162,28 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
                   style: TextStyle(fontSize: 12),
                 ),
                 const SizedBox(height: 10),
-                if (showCallOther && otherPhone.isNotEmpty)
-                  ElevatedButton.icon(
-                    onPressed: () => _call(otherPhone),
-                    icon: const Icon(Icons.call),
-                    label: Text('Call $otherName'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      foregroundColor: Colors.white,
+                Row(
+                  children: [
+                    if (showCallOther && otherPhone.isNotEmpty)
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _call(otherPhone),
+                          icon: const Icon(Icons.call),
+                          label: Text('Call $otherName',
+                              overflow: TextOverflow.ellipsis),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green[700],
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
+                    if (showCallOther && otherPhone.isNotEmpty)
+                      const SizedBox(width: 8),
+                    Expanded(
+                      child: _MessageOtherButton(profId: otherProfId),
                     ),
-                  ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -185,6 +198,11 @@ class _BookingDetailScreenState extends ConsumerState<BookingDetailScreen> {
             icon: const Icon(Icons.star_outline_rounded),
             label: Text('Rate $otherName'),
           ),
+        ] else ...[
+          // Pre-connection: still allow messaging so the two parties can chat
+          // about the booking before accept.
+          const SizedBox(height: 12),
+          _MessageOtherButton(profId: otherProfId),
         ],
 
         // Action buttons
@@ -255,6 +273,53 @@ class _Row extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MessageOtherButton extends ConsumerStatefulWidget {
+  final int profId;
+  const _MessageOtherButton({required this.profId});
+
+  @override
+  ConsumerState<_MessageOtherButton> createState() =>
+      _MessageOtherButtonState();
+}
+
+class _MessageOtherButtonState extends ConsumerState<_MessageOtherButton> {
+  bool _busy = false;
+
+  Future<void> _open() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final id = await startThreadWith(ref, widget.profId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (id != null) {
+      context.push('/messages/$id');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open conversation.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : _open,
+      icon: _busy
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.chat_bubble_outline, size: 16),
+      label: const Text('Message'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: MedUnityColors.primary,
+        side: const BorderSide(color: MedUnityColors.primary),
       ),
     );
   }

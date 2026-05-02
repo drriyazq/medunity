@@ -37,6 +37,13 @@ AssociateBookingFn? _onAssociateBooking;
 void setPushOnAssociateBooking(AssociateBookingFn fn) =>
     _onAssociateBooking = fn;
 
+// Called when a 'direct_message' FCM arrives — host refreshes inbox + thread
+// detail providers so an open Messages screen updates immediately.
+typedef DirectMessageFn = void Function(int threadId);
+DirectMessageFn? _onDirectMessage;
+
+void setPushOnDirectMessage(DirectMessageFn fn) => _onDirectMessage = fn;
+
 class PushService {
   static final _fcm = FirebaseMessaging.instance;
 
@@ -141,6 +148,15 @@ class PushService {
         final bookingIdStr = message.data['booking_id'] as String?;
         final bookingId = int.tryParse(bookingIdStr ?? '');
         if (bookingId != null) _onAssociateBooking?.call(bookingId);
+        return;
+      }
+      if (type == 'direct_message') {
+        _showGenericNotification(message,
+            channel: 'default',
+            payload: message.data['deep_link'] as String?);
+        final threadIdStr = message.data['thread_id'] as String?;
+        final threadId = int.tryParse(threadIdStr ?? '');
+        if (threadId != null) _onDirectMessage?.call(threadId);
         return;
       }
       // Consultation lifecycle events get the chime + payload-driven deep link.

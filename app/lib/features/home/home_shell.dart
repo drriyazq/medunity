@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../theme.dart';
+import '../messaging/messaging_provider.dart';
 import '../sos/category_sheet.dart';
 
-class HomeShell extends StatelessWidget {
+class HomeShell extends ConsumerWidget {
   final Widget child;
   const HomeShell({super.key, required this.child});
 
   static const _tabs = [
     (icon: Icons.home_outlined, label: 'Home', path: '/home'),
-    (icon: Icons.people_outline, label: 'Circles', path: '/circles'),
+    (icon: Icons.chat_bubble_outline, label: 'Messages', path: '/messages'),
     (icon: Icons.medical_services_outlined, label: 'Consult', path: '/consultants'),
     (icon: Icons.storefront_outlined, label: 'Market', path: '/marketplace'),
     (icon: Icons.person_outline, label: 'Profile', path: '/profile'),
@@ -38,9 +40,10 @@ class HomeShell extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).uri.path;
     final currentIndex = _tabs.indexWhere((t) => location.startsWith(t.path));
+    final unread = ref.watch(messagesUnreadCountProvider).valueOrNull ?? 0;
 
     return Scaffold(
       body: Stack(
@@ -67,9 +70,13 @@ class HomeShell extends StatelessWidget {
       bottomNavigationBar: NavigationBar(
         selectedIndex: currentIndex < 0 ? 0 : currentIndex,
         onDestinationSelected: (i) => context.go(_tabs[i].path),
-        destinations: _tabs
-            .map((t) => NavigationDestination(icon: Icon(t.icon), label: t.label))
-            .toList(),
+        destinations: _tabs.map((t) {
+          final isMessages = t.path == '/messages';
+          final iconWidget = (isMessages && unread > 0)
+              ? Badge.count(count: unread, child: Icon(t.icon))
+              : Icon(t.icon);
+          return NavigationDestination(icon: iconWidget, label: t.label);
+        }).toList(),
       ),
     );
   }

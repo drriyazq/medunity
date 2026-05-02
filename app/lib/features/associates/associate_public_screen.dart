@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../theme.dart';
+import '../messaging/messaging_provider.dart';
 import 'associate_provider.dart';
 import 'rate_doctor_sheet.dart';
 import 'request_booking_sheet.dart';
@@ -165,26 +166,36 @@ class AssociatePublicScreen extends ConsumerWidget {
                 ],
                 const SizedBox(height: 12),
                 if (isAvailable)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => showRequestBookingSheet(
-                        context: context,
-                        ref: ref,
-                        profId: profId,
-                        profName: fullName,
-                        ratePerSlot: assocProfile['rate_per_slot'],
-                        ratePerDay: assocProfile['rate_per_day'],
-                        slotHours: assocProfile['slot_hours'] as int?,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          onPressed: () => showRequestBookingSheet(
+                            context: context,
+                            ref: ref,
+                            profId: profId,
+                            profName: fullName,
+                            ratePerSlot: assocProfile['rate_per_slot'],
+                            ratePerDay: assocProfile['rate_per_day'],
+                            slotHours: assocProfile['slot_hours'] as int?,
+                          ),
+                          icon: const Icon(Icons.send, size: 18),
+                          label: const Text('Request Booking'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: MedUnityColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
                       ),
-                      icon: const Icon(Icons.send, size: 18),
-                      label: const Text('Request Booking'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: MedUnityColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
-                    ),
+                      const SizedBox(width: 8),
+                      _MessageButton(profId: profId),
+                    ],
+                  )
+                else
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: _MessageButton(profId: profId),
                   ),
               ],
             ),
@@ -433,6 +444,53 @@ class _SectionTitle extends StatelessWidget {
       child: Text(text,
           style:
               const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+    );
+  }
+}
+
+class _MessageButton extends ConsumerStatefulWidget {
+  final int profId;
+  const _MessageButton({required this.profId});
+
+  @override
+  ConsumerState<_MessageButton> createState() => _MessageButtonState();
+}
+
+class _MessageButtonState extends ConsumerState<_MessageButton> {
+  bool _busy = false;
+
+  Future<void> _open() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final id = await startThreadWith(ref, widget.profId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (id != null) {
+      context.push('/messages/$id');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open conversation.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : _open,
+      icon: _busy
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.chat_bubble_outline, size: 16),
+      label: const Text('Message'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: MedUnityColors.primary,
+        side: const BorderSide(color: MedUnityColors.primary),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
     );
   }
 }

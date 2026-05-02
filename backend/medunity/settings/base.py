@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "support",
     "vendors",
     "associates",
+    "messaging",
 ]
 
 MIDDLEWARE = [

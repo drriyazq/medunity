@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../data/api/client.dart';
 import '../../theme.dart';
+import '../messaging/messaging_provider.dart';
 import 'consultants_provider.dart';
 
 class ConsultantProfileScreen extends ConsumerWidget {
@@ -154,23 +156,28 @@ class _ProfileBody extends StatelessWidget {
           ),
           const SizedBox(height: 20),
 
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: isAvailable
-                  ? () => _showBookingSheet(context, ref, prof)
-                  : null,
-              icon: const Icon(Icons.send),
-              label: const Text('Request Consultation',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: MedUnityColors.primary,
-                foregroundColor: Colors.white,
-                disabledBackgroundColor: Colors.grey[200],
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: isAvailable
+                      ? () => _showBookingSheet(context, ref, prof)
+                      : null,
+                  icon: const Icon(Icons.send),
+                  label: const Text('Request Consultation',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: MedUnityColors.primary,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey[200],
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              _ConsultantMessageButton(profId: profId),
+            ],
           ),
 
           // Reviews
@@ -366,6 +373,55 @@ class _BookingSheetState extends State<_BookingSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ConsultantMessageButton extends ConsumerStatefulWidget {
+  final int profId;
+  const _ConsultantMessageButton({required this.profId});
+
+  @override
+  ConsumerState<_ConsultantMessageButton> createState() =>
+      _ConsultantMessageButtonState();
+}
+
+class _ConsultantMessageButtonState
+    extends ConsumerState<_ConsultantMessageButton> {
+  bool _busy = false;
+
+  Future<void> _open() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final id = await startThreadWith(ref, widget.profId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (id != null) {
+      context.push('/messages/$id');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not open conversation.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: _busy ? null : _open,
+      icon: _busy
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Icon(Icons.chat_bubble_outline, size: 16),
+      label: const Text('Message'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: MedUnityColors.primary,
+        side: const BorderSide(color: MedUnityColors.primary),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       ),
     );
   }

@@ -69,41 +69,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _QuickNavRow extends StatelessWidget {
   const _QuickNavRow();
 
+  // Order matters — Circles intentionally goes after Support + Rankings so
+  // it sits below the practice-support entry points rather than competing
+  // with Associates/Vendors at the top.
   static const _items = [
     (icon: Icons.medical_services_outlined, label: 'Associates', path: '/associates'),
     (icon: Icons.store_outlined, label: 'Vendors', path: '/vendors'),
     (icon: Icons.handshake_outlined, label: 'Support', path: '/support'),
     (icon: Icons.leaderboard, label: 'Rankings', path: '/support/leaderboard'),
+    (icon: Icons.people_outline, label: 'Circles', path: '/circles'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: _items.map((item) => Expanded(
-        child: Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: InkWell(
-            onTap: () => context.push(item.path),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey[200]!),
-              ),
-              child: Column(
-                children: [
-                  Icon(item.icon, color: MedUnityColors.primary, size: 24),
-                  const SizedBox(height: 4),
-                  Text(item.label,
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
-                ],
+    // 5 items don't fit comfortably with Expanded on a 360px-wide phone, so
+    // make the row horizontally scrollable with fixed-width tiles.
+    return SizedBox(
+      height: 78,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final item = _items[i];
+          return SizedBox(
+            width: 84,
+            child: InkWell(
+              onTap: () => context.push(item.path),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(item.icon, color: MedUnityColors.primary, size: 24),
+                    const SizedBox(height: 4),
+                    Text(item.label,
+                        style: const TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
             ),
-          ),
-        ),
-      )).toList(),
+          );
+        },
+      ),
     );
   }
 }
