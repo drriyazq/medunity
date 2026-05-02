@@ -66,6 +66,16 @@ class ConsultantLiveService {
     _service.invoke('updateMobility', {'mobility_mode': mobilityMode});
   }
 
+  /// Idempotent self-heal: if the service isn't running but Go Live is on,
+  /// start it. Safe to call from any UI surface that knows the user is live —
+  /// the Go Live screen, the Consult-tab availability chip, etc. — so the
+  /// foreground notification is reattached even after the OS killed the
+  /// service or a cold start raced past the bootstrap.
+  static Future<void> ensureRunning({String mobilityMode = 'mobile'}) async {
+    if (await _service.isRunning()) return;
+    await start(mobilityMode: mobilityMode);
+  }
+
   static Future<void> stop() async {
     final running = await _service.isRunning();
     if (running) _service.invoke('stopService');
@@ -81,11 +91,7 @@ class ConsultantLiveService {
   /// Silent on every failure — never blocks app boot.
   static Future<void> bootstrapIfLive(String authToken) async {
     try {
-      final running = await _service.isRunning();
-      if (running) return;
-      // Don't try to start if background location was revoked between sessions.
-      final bgGranted = await Permission.locationAlways.isGranted;
-      if (!bgGranted) return;
+      if (await _service.isRunning()) return;
 
       final dio = Dio(BaseOptions(
         baseUrl: _kApiBaseUrl,
@@ -101,10 +107,22 @@ class ConsultantLiveService {
       final data = resp.data as Map;
       if (data['is_available'] != true) return;
 
+      // Note: deliberately NOT pre-checking Permission.locationAlways here.
+      // If the toggle is green on the server, the user already granted perms
+      // when they went live. Re-checking via permission_handler can return a
+      // transient false negative (especially on Android 14+) and silently
+      // drop the foreground notification, which is exactly the bug we hit.
       final mobility = (data['mobility_mode'] as String?) ?? 'mobile';
       await start(mobilityMode: mobility);
-    } catch (_) {
-      // Silent — don't block app start on transient backend issues.
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('[ConsultantLiveService] bootstrap → started in $mobility mode');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        // ignore: avoid_print
+        print('[ConsultantLiveService] bootstrap failed: $e');
+      }
     }
   }
 }

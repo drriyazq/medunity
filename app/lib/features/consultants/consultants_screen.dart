@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../services/consultant_live_service.dart';
 import '../../theme.dart';
 import 'bookings_tab.dart';
 import 'consultants_provider.dart';
 import 'find_consultants_tab.dart';
+import 'live_provider.dart';
 
 class ConsultantsScreen extends ConsumerWidget {
   /// 0 = Find, 1 = Bookings. Used when deep-linking from a push notification.
@@ -61,6 +63,18 @@ class _AvailabilityChip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(availabilityProvider);
     final isAvailable = async.valueOrNull?['is_available'] as bool? ?? false;
+
+    if (isAvailable) {
+      // Self-heal: whenever the chip shows LIVE, ensure the foreground service
+      // (and its persistent notification) is actually running. Catches OS-kills
+      // and the cold-start race where bootstrap never fired.
+      final mobility = (ref.read(liveSettingsProvider).valueOrNull?[
+                  'mobility_mode'] as String?) ??
+          'mobile';
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ConsultantLiveService.ensureRunning(mobilityMode: mobility);
+      });
+    }
 
     return GestureDetector(
       onTap: () => context.push('/consultants/go-live'),

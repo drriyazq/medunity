@@ -303,13 +303,16 @@ class MedUnityApp extends ConsumerWidget {
     // already live before the app was killed/reinstalled. Without this, the
     // server still says they're live but the persistent notification + 10-min
     // pings silently disappear until they manually toggle off+on.
+    //
+    // fireImmediately so cold starts also fire — without it, if the cached
+    // auth state is already `verified` by the time MedUnityApp first builds,
+    // the listener never sees a transition and bootstrap silently never runs.
     ref.listen(authProvider, (prev, next) {
-      final wasUnverified = prev?.status != AuthStatus.verified;
-      if (wasUnverified && next.status == AuthStatus.verified) {
+      if (next.status == AuthStatus.verified) {
         final token = HiveSetup.sessionBox.get('access_token') as String?;
         if (token != null) ConsultantLiveService.bootstrapIfLive(token);
       }
-    });
+    }, fireImmediately: true);
     setPushNavigate((path) => router.push(path));
     setPushOnSosResponse((alertId) {
       // Force refresh of an open status screen + dashboard.

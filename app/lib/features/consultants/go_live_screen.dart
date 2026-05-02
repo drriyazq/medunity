@@ -142,6 +142,18 @@ class _GoLiveScreenState extends ConsumerState<GoLiveScreen> {
             error: (_, __) => const _ErrorTile(text: 'Could not load status'),
             data: (avail) {
               final isLive = avail['is_available'] as bool? ?? false;
+              if (isLive) {
+                // Self-heal: if Go Live is green but the foreground service
+                // isn't running (cold start, OS killed it, perm-handler quirk
+                // skipped bootstrap), reattach now. Idempotent — no-op when
+                // already running.
+                final mobility = (ref.read(liveSettingsProvider).valueOrNull?[
+                            'mobility_mode'] as String?) ??
+                    'mobile';
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  ConsultantLiveService.ensureRunning(mobilityMode: mobility);
+                });
+              }
               return Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
