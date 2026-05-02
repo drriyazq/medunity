@@ -635,5 +635,6 @@ def _push_booking_event(booking, event_type, title, body, to):
                 'deep_link': f'/consultants/bookings/{booking.pk}',
             },
             priority='high',
-            channel_id='default',
+            channel_id='consultant_request_v1',
+            sound='consult_chime',
         )

@@ -121,7 +121,7 @@ def send_sos(request):
                     'deep_link': f'/sos/incoming/{alert.pk}',
                 },
                 priority='high',
-                channel_id='sos_critical',
+                channel_id='sos_critical_v2',
                 sound='siren',
             )
             if ok:
@@ -223,7 +223,8 @@ def respond_to_sos(request, pk):
                     'deep_link': f'/sos/status/{alert.pk}',
                 },
                 priority='high',
-                channel_id='sos_critical',
+                channel_id='sos_critical_v2',
+                sound='siren',
             )
 
     return Response({'detail': 'Response recorded.', 'created': created})

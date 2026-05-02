@@ -86,20 +86,35 @@ class PushService {
       },
     );
 
-    // SOS high-priority channel
+    // SOS high-priority channel — siren sound from res/raw/siren.wav.
+    // Channel ID bumped to v2: Android caches sound URI per channel forever
+    // once created, so bumping the ID forces a fresh registration with the
+    // new sound on existing installs.
     const sosChannel = AndroidNotificationChannel(
-      'sos_critical',
+      'sos_critical_v2',
       'SOS Alerts',
-      description: 'High-priority SOS emergency alerts',
+      description: 'High-priority SOS emergency alerts — loud siren',
       importance: Importance.max,
       playSound: true,
+      sound: RawResourceAndroidNotificationSound('siren'),
       enableVibration: true,
       enableLights: true,
     );
-    await _localNotifications
+    // Consultation booking channel — distinct chime from res/raw/consult_chime.wav.
+    const consultChannel = AndroidNotificationChannel(
+      'consultant_request_v1',
+      'Consultation Requests',
+      description: 'New consultant booking requests and responses',
+      importance: Importance.high,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('consult_chime'),
+      enableVibration: true,
+    );
+    final androidPlugin = _localNotifications
         .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(sosChannel);
+            AndroidFlutterLocalNotificationsPlugin>();
+    await androidPlugin?.createNotificationChannel(sosChannel);
+    await androidPlugin?.createNotificationChannel(consultChannel);
   }
 
   static void _listenForeground() {
@@ -128,6 +143,15 @@ class PushService {
         if (bookingId != null) _onAssociateBooking?.call(bookingId);
         return;
       }
+      // Consultation lifecycle events get the chime + payload-driven deep link.
+      if (type == 'new_booking' ||
+          type == 'booking_accepted' ||
+          type == 'booking_declined' ||
+          type == 'booking_completed' ||
+          type == 'booking_cancelled') {
+        _showConsultantNotification(message);
+        return;
+      }
       _localNotifications.show(
         message.hashCode,
         message.notification?.title,
@@ -141,6 +165,27 @@ class PushService {
         ),
       );
     });
+  }
+
+  static Future<void> _showConsultantNotification(RemoteMessage message) async {
+    final deepLink = message.data['deep_link'] as String?;
+    await _localNotifications.show(
+      message.hashCode,
+      message.notification?.title,
+      message.notification?.body,
+      const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'consultant_request_v1',
+          'Consultation Requests',
+          importance: Importance.high,
+          priority: Priority.high,
+          playSound: true,
+          sound: RawResourceAndroidNotificationSound('consult_chime'),
+          enableVibration: true,
+        ),
+      ),
+      payload: deepLink,
+    );
   }
 
   static void _listenTap() {
@@ -191,7 +236,7 @@ class PushService {
       body,
       NotificationDetails(
         android: AndroidNotificationDetails(
-          'sos_critical',
+          'sos_critical_v2',
           'SOS Alerts',
           importance: Importance.max,
           priority: Priority.high,
@@ -215,7 +260,7 @@ class PushService {
       'A nearby doctor needs help — tap to respond',
       NotificationDetails(
         android: AndroidNotificationDetails(
-          'sos_critical',
+          'sos_critical_v2',
           'SOS Alerts',
           importance: Importance.max,
           priority: Priority.max,
