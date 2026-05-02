@@ -558,9 +558,14 @@ class _PreviewHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+        Expanded(
+          child: Text(
+            title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
         TextButton(
           onPressed: () => context.push(seeAllPath),
           child: Text(seeAllLabel),
