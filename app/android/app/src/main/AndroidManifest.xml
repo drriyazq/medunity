@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
     <uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
@@ -14,6 +15,12 @@
         android:label="medunity"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+        <!-- Override flutter_background_service: declare location foregroundServiceType
+             so Android 14+ accepts our startForeground(typeLocation) call. -->
+        <service
+            android:name="id.flutter.flutter_background_service.BackgroundService"
+            android:foregroundServiceType="location"
+            tools:replace="android:foregroundServiceType"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"
