@@ -18,6 +18,7 @@ import 'features/consultants/live_provider.dart';
 import 'features/consultants/manage_list_screen.dart';
 import 'features/consultants/schedule_editor_screen.dart';
 import 'features/consultants/visibility_settings_screen.dart';
+import 'services/consultant_live_service.dart';
 import 'features/equipment/equipment_screen.dart';
 import 'features/equipment/listing_detail_screen.dart';
 import 'features/equipment/my_listings_screen.dart';
@@ -298,6 +299,17 @@ class MedUnityApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    // Re-attach the live-location foreground service if the consultant was
+    // already live before the app was killed/reinstalled. Without this, the
+    // server still says they're live but the persistent notification + 10-min
+    // pings silently disappear until they manually toggle off+on.
+    ref.listen(authProvider, (prev, next) {
+      final wasUnverified = prev?.status != AuthStatus.verified;
+      if (wasUnverified && next.status == AuthStatus.verified) {
+        final token = HiveSetup.sessionBox.get('access_token') as String?;
+        if (token != null) ConsultantLiveService.bootstrapIfLive(token);
+      }
+    });
     setPushNavigate((path) => router.push(path));
     setPushOnSosResponse((alertId) {
       // Force refresh of an open status screen + dashboard.

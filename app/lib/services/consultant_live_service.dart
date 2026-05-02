@@ -72,6 +72,41 @@ class ConsultantLiveService {
   }
 
   static Future<bool> isRunning() => _service.isRunning();
+
+  /// Reattach the foreground service to the user's existing `is_available=True`
+  /// state on app startup (e.g. after a fresh install, OS reboot, or the user
+  /// killing the app from recents). Without this, the persistent notification
+  /// silently disappears even though the server still thinks they're live.
+  ///
+  /// Silent on every failure — never blocks app boot.
+  static Future<void> bootstrapIfLive(String authToken) async {
+    try {
+      final running = await _service.isRunning();
+      if (running) return;
+      // Don't try to start if background location was revoked between sessions.
+      final bgGranted = await Permission.locationAlways.isGranted;
+      if (!bgGranted) return;
+
+      final dio = Dio(BaseOptions(
+        baseUrl: _kApiBaseUrl,
+        connectTimeout: const Duration(seconds: 8),
+        receiveTimeout: const Duration(seconds: 8),
+        headers: {'Authorization': 'Bearer $authToken'},
+      ));
+      final resp = await dio.get(
+        '/consultants/me/settings/',
+        options: Options(validateStatus: (s) => s != null && s < 500),
+      );
+      if (resp.statusCode != 200) return;
+      final data = resp.data as Map;
+      if (data['is_available'] != true) return;
+
+      final mobility = (data['mobility_mode'] as String?) ?? 'mobile';
+      await start(mobilityMode: mobility);
+    } catch (_) {
+      // Silent — don't block app start on transient backend issues.
+    }
+  }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
