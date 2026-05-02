@@ -69,56 +69,87 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 class _QuickNavRow extends StatelessWidget {
   const _QuickNavRow();
 
-  // Order matters — Circles intentionally goes after Support + Rankings so
-  // it sits below the practice-support entry points rather than competing
-  // with Associates/Vendors at the top.
-  static const _items = [
+  // Order matters — Circles sits below the row of 4 (in row 2) on purpose,
+  // after Support + Rankings, since it's the lowest-traffic entry point.
+  static const _row1 = [
     (icon: Icons.medical_services_outlined, label: 'Associates', path: '/associates'),
     (icon: Icons.store_outlined, label: 'Vendors', path: '/vendors'),
     (icon: Icons.handshake_outlined, label: 'Support', path: '/support'),
     (icon: Icons.leaderboard, label: 'Rankings', path: '/support/leaderboard'),
+  ];
+  static const _row2 = [
     (icon: Icons.people_outline, label: 'Circles', path: '/circles'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    // 5 items don't fit comfortably with Expanded on a 360px-wide phone, so
-    // make the row horizontally scrollable with fixed-width tiles.
-    return SizedBox(
-      height: 78,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        itemCount: _items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final item = _items[i];
-          return SizedBox(
-            width: 84,
-            child: InkWell(
-              onTap: () => context.push(item.path),
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey[200]!),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(item.icon, color: MedUnityColors.primary, size: 24),
-                    const SizedBox(height: 4),
-                    Text(item.label,
-                        style: const TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
+    // 4 tiles in row 1 + Circles in row 2 (left-aligned, same width as a
+    // row-1 tile). All five always visible — no horizontal scroll. Tiles
+    // stretch to fill their column, so labels never clip at large font
+    // scales because the tile height is content-driven (IntrinsicHeight via
+    // the Column's natural sizing).
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            for (var i = 0; i < _row1.length; i++) ...[
+              if (i > 0) const SizedBox(width: 8),
+              Expanded(child: _NavTile(item: _row1[i])),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Row 2 — Circles. Use 4 expandeds with 3 invisible spacers so the
+        // visible tile keeps the same width as a row-1 tile.
+        Row(
+          children: [
+            Expanded(child: _NavTile(item: _row2[0])),
+            const SizedBox(width: 8),
+            const Expanded(child: SizedBox.shrink()),
+            const SizedBox(width: 8),
+            const Expanded(child: SizedBox.shrink()),
+            const SizedBox(width: 8),
+            const Expanded(child: SizedBox.shrink()),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _NavTile extends StatelessWidget {
+  final ({IconData icon, String label, String path}) item;
+  const _NavTile({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => context.push(item.path),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        // No fixed height — Column sizes to its content so labels can grow
+        // with the system font scale without clipping.
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(item.icon, color: MedUnityColors.primary, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              item.label,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }

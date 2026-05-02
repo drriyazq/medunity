@@ -10,9 +10,11 @@ class HomeShell extends ConsumerWidget {
   final Widget child;
   const HomeShell({super.key, required this.child});
 
+  // Labels kept short (≤7 chars) so NavigationBar doesn't wrap them onto
+  // two lines on phones with a larger system font scale.
   static const _tabs = [
     (icon: Icons.home_outlined, label: 'Home', path: '/home'),
-    (icon: Icons.chat_bubble_outline, label: 'Messages', path: '/messages'),
+    (icon: Icons.chat_bubble_outline, label: 'Chats', path: '/messages'),
     (icon: Icons.medical_services_outlined, label: 'Consult', path: '/consultants'),
     (icon: Icons.storefront_outlined, label: 'Market', path: '/marketplace'),
     (icon: Icons.person_outline, label: 'Profile', path: '/profile'),
