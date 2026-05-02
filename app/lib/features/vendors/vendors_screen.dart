@@ -13,6 +13,7 @@ const _vendorCategories = [
   ('equipment_technician', 'Technicians'),
   ('pharmacy', 'Pharmacy'),
   ('imaging_centre', 'Imaging'),
+  ('dental_assistant', 'Dental Assistant'),
   ('other', 'Other'),
 ];
 

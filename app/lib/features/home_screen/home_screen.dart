@@ -2,10 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../data/api/client.dart';
 import '../../state/auth_provider.dart';
 import '../../theme.dart';
 import '../profile/set_clinic_location.dart';
 import '../support/support_provider.dart';
+
+/// Pulls the user's primary role for role-driven Home rendering. Cached for
+/// the session so the Home doesn't churn between rebuilds.
+final _primaryRoleProvider = FutureProvider<String>((ref) async {
+  final dio = ref.read(dioProvider);
+  try {
+    final resp = await dio.get('/auth/me/');
+    final data = resp.data as Map;
+    final primary = (data['primary_role'] as String?) ?? '';
+    if (primary.isNotEmpty) return primary;
+    // Fallback: first of `roles[]`, then legacy `role`. Server already
+    // backfills, but this keeps the UI safe against stale clients.
+    final roles = (data['roles'] as List?)?.cast<String>() ?? const [];
+    if (roles.isNotEmpty) return roles.first;
+    return (data['role'] as String?) ?? '';
+  } catch (_) {
+    return '';
+  }
+});
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -66,15 +86,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 // ── Quick nav row ─────────────────────────────────────────────────────────────
 
-class _QuickNavRow extends StatelessWidget {
+class _QuickNavRow extends ConsumerWidget {
   const _QuickNavRow();
 
-  // Order matters — Circles sits below the row of 4 (in row 2) on purpose,
-  // after Support + Rankings, since it's the lowest-traffic entry point.
-  static const _row1 = [
+  // Default order — Circles sits below the row of 4 (in row 2), after
+  // Support + Rankings, since it's the lowest-traffic entry point. Some
+  // roles override the row-1 mix below.
+  static const _defaultRow1 = [
     (icon: Icons.medical_services_outlined, label: 'Associates', path: '/associates'),
     (icon: Icons.store_outlined, label: 'Vendors', path: '/vendors'),
     (icon: Icons.handshake_outlined, label: 'Support', path: '/support'),
+    (icon: Icons.leaderboard, label: 'Rankings', path: '/support/leaderboard'),
+  ];
+  // Associate doctor's row-1 leads with Find Associates (their inbound feed)
+  // and drops Vendors (lower priority for them than Support / Rankings).
+  static const _associateRow1 = [
+    (icon: Icons.medical_services_outlined, label: 'Find Gigs', path: '/associates'),
+    (icon: Icons.handshake_outlined, label: 'Support', path: '/support'),
+    (icon: Icons.store_outlined, label: 'Vendors', path: '/vendors'),
     (icon: Icons.leaderboard, label: 'Rankings', path: '/support/leaderboard'),
   ];
   static const _row2 = [
@@ -82,7 +111,9 @@ class _QuickNavRow extends StatelessWidget {
   ];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final primary = ref.watch(_primaryRoleProvider).valueOrNull ?? '';
+    final row1 = primary == 'associate_doctor' ? _associateRow1 : _defaultRow1;
     // 4 tiles in row 1 + Circles in row 2 (left-aligned, same width as a
     // row-1 tile). All five always visible — no horizontal scroll. Tiles
     // stretch to fill their column, so labels never clip at large font
@@ -93,9 +124,9 @@ class _QuickNavRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            for (var i = 0; i < _row1.length; i++) ...[
+            for (var i = 0; i < row1.length; i++) ...[
               if (i > 0) const SizedBox(width: 8),
-              Expanded(child: _NavTile(item: _row1[i])),
+              Expanded(child: _NavTile(item: row1[i])),
             ],
           ],
         ),
@@ -165,51 +196,60 @@ class _BrowniePointsCard extends ConsumerWidget {
     final async = ref.watch(myPointsProvider);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      // Slimmer than the original 20px-padded / 36px-pts version — frees
+      // ~30 vertical pixels for the role-driven sections below.
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [MedUnityColors.primary, Color(0xFF1A4FA8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(14),
       ),
       child: async.when(
-        loading: () => const Center(
-            child: CircularProgressIndicator(color: Colors.white)),
+        loading: () => const SizedBox(
+            height: 40,
+            child: Center(child: CircularProgressIndicator(color: Colors.white))),
         error: (_, __) => const Text('—',
-            style: TextStyle(color: Colors.white, fontSize: 32)),
+            style: TextStyle(color: Colors.white, fontSize: 22)),
         data: (data) {
           final pts = data['total_points'] as int? ?? 0;
           final rank = data['rank'] as int? ?? 0;
           return Row(
             children: [
-              const Icon(Icons.stars_rounded, color: Colors.amber, size: 48),
-              const SizedBox(width: 16),
+              const Icon(Icons.stars_rounded, color: Colors.amber, size: 28),
+              const SizedBox(width: 10),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
                   children: [
                     Text('$pts',
                         style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 36,
-                            fontWeight: FontWeight.bold)),
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            height: 1)),
+                    const SizedBox(width: 6),
                     const Text('Brownie Points',
-                        style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text('#$rank',
                       style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold)),
-                  const Text('Your rank',
-                      style: TextStyle(color: Colors.white70, fontSize: 12)),
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          height: 1)),
+                  const SizedBox(width: 4),
+                  const Text('Rank',
+                      style: TextStyle(color: Colors.white70, fontSize: 11)),
                 ],
               ),
             ],

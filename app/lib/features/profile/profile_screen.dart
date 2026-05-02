@@ -359,6 +359,7 @@ const List<Map<String, String>> _allRoles = [
   {'key': 'hospital_owner', 'label': 'Hospital Owner / Director'},
   {'key': 'visiting_consultant', 'label': 'Visiting Consultant / Specialist'},
   {'key': 'associate_doctor', 'label': 'Associate Doctor (Short-term Coverage)'},
+  {'key': 'academic_teaching', 'label': 'Academic / Teaching (Dental College Faculty)'},
 ];
 
 class _RolesTile extends StatefulWidget {
@@ -382,18 +383,25 @@ class _RolesTileState extends State<_RolesTile> {
 
   Future<void> _edit() async {
     final selected = Set<String>.from(_currentRoles());
-    final picked = await showModalBottomSheet<Set<String>>(
+    final initialPrimary =
+        widget.data['primary_role'] as String? ?? selected.firstOrNull ?? '';
+    final result = await showModalBottomSheet<_RolesEditorResult>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _RolesEditorSheet(initialSelection: selected),
+      builder: (_) => _RolesEditorSheet(
+        initialSelection: selected,
+        initialPrimary: initialPrimary,
+      ),
     );
-    if (picked == null || picked.isEmpty) return;
+    if (result == null || result.roles.isEmpty) return;
     setState(() => _saving = true);
     try {
       final dio = widget.ref.read(dioProvider);
-      await dio.patch('/auth/me/', data: {'roles': picked.toList()});
-      // Refresh providers downstream
+      await dio.patch('/auth/me/', data: {
+        'roles': result.roles.toList(),
+        'primary_role': result.primary,
+      });
       // ignore: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
       widget.ref.invalidate(_profileDataProvider);
       if (!mounted) return;
@@ -417,6 +425,7 @@ class _RolesTileState extends State<_RolesTile> {
   Widget build(BuildContext context) {
     final roles = _currentRoles();
     final labels = {for (final r in _allRoles) r['key']!: r['label']!};
+    final primary = widget.data['primary_role'] as String? ?? '';
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -457,28 +466,61 @@ class _RolesTileState extends State<_RolesTile> {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: MedUnityColors.primary.withOpacity(0.08),
+                      color: r == primary
+                          ? MedUnityColors.primary
+                          : MedUnityColors.primary.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Text(
-                      labels[r] ?? r,
-                      style: const TextStyle(
-                          color: MedUnityColors.primary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (r == primary) ...[
+                          const Icon(Icons.star,
+                              size: 12, color: Colors.white),
+                          const SizedBox(width: 4),
+                        ],
+                        Text(
+                          labels[r] ?? r,
+                          style: TextStyle(
+                              color: r == primary
+                                  ? Colors.white
+                                  : MedUnityColors.primary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ],
                     ),
                   ),
               ],
             ),
+          if (roles.isNotEmpty && primary.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Primary role drives your Home page sections.',
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
+/// Result returned by the editor sheet — both the selected roles and the
+/// chosen primary (always one of the selected roles, validated client-side).
+class _RolesEditorResult {
+  final Set<String> roles;
+  final String primary;
+  const _RolesEditorResult(this.roles, this.primary);
+}
+
 class _RolesEditorSheet extends StatefulWidget {
   final Set<String> initialSelection;
-  const _RolesEditorSheet({required this.initialSelection});
+  final String initialPrimary;
+  const _RolesEditorSheet({
+    required this.initialSelection,
+    required this.initialPrimary,
+  });
 
   @override
   State<_RolesEditorSheet> createState() => _RolesEditorSheetState();
@@ -486,6 +528,28 @@ class _RolesEditorSheet extends StatefulWidget {
 
 class _RolesEditorSheetState extends State<_RolesEditorSheet> {
   late Set<String> _sel = Set.from(widget.initialSelection);
+  late String _primary = widget.initialPrimary.isNotEmpty &&
+          widget.initialSelection.contains(widget.initialPrimary)
+      ? widget.initialPrimary
+      : (widget.initialSelection.isNotEmpty
+          ? widget.initialSelection.first
+          : '');
+
+  void _toggle(String key, bool? on) {
+    setState(() {
+      if (on == true) {
+        _sel.add(key);
+        // First role auto-becomes primary.
+        if (_primary.isEmpty) _primary = key;
+      } else {
+        _sel.remove(key);
+        // If we just unchecked the primary, promote the next selected role.
+        if (_primary == key) {
+          _primary = _sel.isNotEmpty ? _sel.first : '';
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -514,35 +578,91 @@ class _RolesEditorSheetState extends State<_RolesEditorSheet> {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Text(
-            'You can change these any time.',
+            'Tap the star to mark one role as your Primary — this drives your Home page sections.',
             style: TextStyle(color: Colors.grey[600], fontSize: 12),
           ),
           const SizedBox(height: 12),
           for (final r in _allRoles)
-            CheckboxListTile(
-              value: _sel.contains(r['key']),
-              title: Text(r['label']!),
-              onChanged: (v) => setState(() {
-                if (v == true) {
-                  _sel.add(r['key']!);
-                } else {
-                  _sel.remove(r['key']!);
-                }
+            _RoleRow(
+              roleKey: r['key']!,
+              label: r['label']!,
+              checked: _sel.contains(r['key']),
+              isPrimary: _primary == r['key'],
+              canBePrimary: _sel.contains(r['key']),
+              onToggle: (v) => _toggle(r['key']!, v),
+              onSetPrimary: () => setState(() {
+                if (_sel.contains(r['key'])) _primary = r['key']!;
               }),
-              dense: true,
-              controlAffinity: ListTileControlAffinity.leading,
             ),
           const SizedBox(height: 8),
           ElevatedButton(
             onPressed: _sel.isEmpty
                 ? null
-                : () => Navigator.pop<Set<String>>(context, _sel),
+                : () => Navigator.pop<_RolesEditorResult>(
+                      context, _RolesEditorResult(_sel, _primary)),
             style: ElevatedButton.styleFrom(
               backgroundColor: MedUnityColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
             child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RoleRow extends StatelessWidget {
+  final String roleKey;
+  final String label;
+  final bool checked;
+  final bool isPrimary;
+  final bool canBePrimary;
+  final ValueChanged<bool?> onToggle;
+  final VoidCallback onSetPrimary;
+
+  const _RoleRow({
+    required this.roleKey,
+    required this.label,
+    required this.checked,
+    required this.isPrimary,
+    required this.canBePrimary,
+    required this.onToggle,
+    required this.onSetPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Checkbox(
+            value: checked,
+            onChanged: onToggle,
+            activeColor: MedUnityColors.primary,
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => onToggle(!checked),
+              child: Text(label, style: const TextStyle(fontSize: 14)),
+            ),
+          ),
+          IconButton(
+            onPressed: canBePrimary ? onSetPrimary : null,
+            icon: Icon(
+              isPrimary ? Icons.star : Icons.star_border,
+              color: isPrimary
+                  ? Colors.amber[700]
+                  : (canBePrimary ? Colors.grey[500] : Colors.grey[300]),
+              size: 22,
+            ),
+            tooltip: isPrimary
+                ? 'Primary role'
+                : (canBePrimary
+                    ? 'Set as primary'
+                    : 'Tick this role first'),
           ),
         ],
       ),
