@@ -33,9 +33,9 @@ class ConsultantLiveService {
         autoStart: false,
         isForegroundMode: true,
         notificationChannelId: _kNotificationChannelId,
-        initialNotificationTitle: 'MedUnity is sharing your location',
+        initialNotificationTitle: "You're live on MedUnity",
         initialNotificationContent:
-            'Your location is being shared with doctors and clinics near you.',
+            'Matching you with nearby doctors. Your exact location stays private.',
         foregroundServiceNotificationId: _kNotificationId,
         foregroundServiceTypes: [AndroidForegroundType.location],
       ),
@@ -105,8 +105,8 @@ void _onServiceStart(ServiceInstance service) async {
   if (service is AndroidServiceInstance) {
     service.setAsForegroundService();
     service.setForegroundNotificationInfo(
-      title: 'MedUnity is sharing your location',
-      content: 'Tap to manage Go Live.',
+      title: "You're live on MedUnity",
+      content: 'Matching you with nearby doctors. Tap to manage Go Live.',
     );
   }
 

@@ -45,7 +45,7 @@ class LiveConsentScreen extends StatelessWidget {
                     _Bullet(
                       icon: Icons.notifications_active_outlined,
                       text:
-                          'Android shows a permanent notification while Go Live is on — you can stop sharing in one tap from there.',
+                          'Android shows a permanent notification while Go Live is on — you can stop matching in one tap from there.',
                     ),
                     _Bullet(
                       icon: Icons.battery_alert_outlined,
