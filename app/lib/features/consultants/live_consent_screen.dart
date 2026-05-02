@@ -19,14 +19,14 @@ class LiveConsentScreen extends StatelessWidget {
                 child: Column(
                   children: const [
                     Icon(Icons.gps_fixed,
-                        color: MedUnityColors.primary, size: 56),
-                    SizedBox(height: 12),
+                        color: MedUnityColors.primary, size: 44),
+                    SizedBox(height: 8),
                     Text(
                       'How Go Live works',
                       style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-                    SizedBox(height: 16),
+                    SizedBox(height: 12),
                     _Bullet(
                       icon: Icons.location_on_outlined,
                       text:
@@ -99,15 +99,15 @@ class _Bullet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: MedUnityColors.primary, size: 22),
-          const SizedBox(width: 12),
+          Icon(icon, color: MedUnityColors.primary, size: 20),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: const TextStyle(fontSize: 14, height: 1.4)),
+                style: const TextStyle(fontSize: 13, height: 1.35)),
           ),
         ],
       ),

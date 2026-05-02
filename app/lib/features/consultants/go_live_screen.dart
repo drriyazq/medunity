@@ -159,9 +159,9 @@ class _GoLiveScreenState extends ConsumerState<GoLiveScreen> {
                     Icon(
                       isLive ? Icons.gps_fixed : Icons.gps_off,
                       color: isLive ? Colors.green : Colors.grey[600],
-                      size: 32,
+                      size: 26,
                     ),
-                    const SizedBox(width: 14),
+                    const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,7 +169,7 @@ class _GoLiveScreenState extends ConsumerState<GoLiveScreen> {
                           Text(
                             isLive ? 'You are LIVE' : 'Currently offline',
                             style: const TextStyle(
-                                fontSize: 16,
+                                fontSize: 14,
                                 fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 2),
@@ -178,7 +178,7 @@ class _GoLiveScreenState extends ConsumerState<GoLiveScreen> {
                                 ? 'Doctors and clinics nearby can find you.'
                                 : 'Turn on to share your location for emergency consults.',
                             style: TextStyle(
-                                color: Colors.grey[700], fontSize: 12),
+                                color: Colors.grey[700], fontSize: 11),
                           ),
                         ],
                       ),
@@ -307,7 +307,7 @@ class _SectionTitle extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Text(text,
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
     );
   }
 }

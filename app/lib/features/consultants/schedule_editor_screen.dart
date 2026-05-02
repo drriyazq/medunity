@@ -111,7 +111,7 @@ class _ScheduleEditorScreenState extends ConsumerState<ScheduleEditorScreen> {
                 'Set the windows when you want to be Go Live automatically. '
                 'Outside these windows, Go Live stays off unless you turn it on manually.',
                 style:
-                    TextStyle(fontSize: 13, color: MedUnityColors.textSecondary),
+                    TextStyle(fontSize: 12, color: MedUnityColors.textSecondary),
               ),
               const SizedBox(height: 16),
               ..._kDays.map((d) {
@@ -125,7 +125,7 @@ class _ScheduleEditorScreenState extends ConsumerState<ScheduleEditorScreen> {
                       children: [
                         Text(d.$2,
                             style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 14)),
+                                fontWeight: FontWeight.bold, fontSize: 13)),
                         const SizedBox(height: 6),
                         if (indices.isEmpty)
                           const Text('No windows',
@@ -138,7 +138,7 @@ class _ScheduleEditorScreenState extends ConsumerState<ScheduleEditorScreen> {
                             children: [
                               Expanded(
                                 child: Text('${w['start']} – ${w['end']}',
-                                    style: const TextStyle(fontSize: 14)),
+                                    style: const TextStyle(fontSize: 13)),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.edit_outlined, size: 18),

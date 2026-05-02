@@ -125,12 +125,12 @@ class _ConsultantCard extends StatelessWidget {
             Stack(
               children: [
                 CircleAvatar(
-                  radius: 28,
+                  radius: 24,
                   backgroundImage: consultant['profile_photo'] != null
                       ? NetworkImage(consultant['profile_photo'] as String)
                       : null,
                   child: consultant['profile_photo'] == null
-                      ? const Icon(Icons.person, size: 28)
+                      ? const Icon(Icons.person, size: 24)
                       : null,
                 ),
                 Positioned(
@@ -155,10 +155,10 @@ class _ConsultantCard extends StatelessWidget {
                 children: [
                   Text(consultant['full_name'] as String,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 15)),
+                          fontWeight: FontWeight.w600, fontSize: 14)),
                   Text(consultant['specialization'] as String,
                       style: const TextStyle(
-                          fontSize: 13, color: MedUnityColors.primary)),
+                          fontSize: 12, color: MedUnityColors.primary)),
                   const SizedBox(height: 6),
                   Row(
                     children: [
