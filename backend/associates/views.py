@@ -71,7 +71,18 @@ def me_associate_profile(request):
     serializer = AssociateProfileSerializer(profile, data=request.data, partial=True)
     serializer.is_valid(raise_exception=True)
     serializer.save()
+    _fallback_base_location_from_clinic(profile, prof)
     return Response(AssociateProfileSerializer(profile).data)
+
+
+def _fallback_base_location_from_clinic(profile, prof):
+    if profile.base_lat is not None and profile.base_lng is not None:
+        return
+    clinic = getattr(prof, 'clinic', None)
+    if clinic and clinic.lat is not None and clinic.lng is not None:
+        profile.base_lat = clinic.lat
+        profile.base_lng = clinic.lng
+        profile.save(update_fields=['base_lat', 'base_lng', 'updated_at'])
 
 
 @api_view(['POST'])
@@ -90,6 +101,8 @@ def me_toggle_availability(request):
         )
     profile.is_available_for_hire = new
     profile.save(update_fields=['is_available_for_hire', 'updated_at'])
+    if new:
+        _fallback_base_location_from_clinic(profile, prof)
     return Response(AssociateProfileSerializer(profile).data)
 
 

@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, parser_classes, permission_classes
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -249,7 +249,7 @@ def create_profile(request):
 
 @api_view(["GET", "PATCH"])
 @permission_classes([permissions.IsAuthenticated])
-@parser_classes([MultiPartParser, FormParser])
+@parser_classes([JSONParser, MultiPartParser, FormParser])
 def me(request):
     try:
         prof = MedicalProfessional.objects.select_related('clinic').get(user=request.user)

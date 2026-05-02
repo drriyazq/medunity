@@ -28,7 +28,7 @@ class AssociateProfileSerializer(serializers.ModelSerializer):
             'professional_id', 'full_name', 'phone', 'specialization_display',
             'is_available_for_hire', 'bio', 'slot_hours',
             'rate_per_slot', 'rate_per_day',
-            'base_lat', 'base_lng', 'base_city', 'base_state',
+            'base_lat', 'base_lng', 'base_locality', 'base_city', 'base_state',
             'travel_radius_km', 'notes',
             'created_at', 'updated_at',
         ]

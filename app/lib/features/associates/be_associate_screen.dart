@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 
 import '../../theme.dart';
@@ -18,12 +19,15 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
   final _ratePerSlotCtrl = TextEditingController();
   final _ratePerDayCtrl = TextEditingController();
   final _radiusCtrl = TextEditingController();
-  final _cityCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   bool _initialised = false;
   bool _saving = false;
+  bool _geocoding = false;
   double? _baseLat;
   double? _baseLng;
+  String _baseLocality = '';
+  String _baseCity = '';
+  String _baseState = '';
 
   @override
   void dispose() {
@@ -32,7 +36,6 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
     _ratePerSlotCtrl.dispose();
     _ratePerDayCtrl.dispose();
     _radiusCtrl.dispose();
-    _cityCtrl.dispose();
     _notesCtrl.dispose();
     super.dispose();
   }
@@ -45,10 +48,20 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
     _ratePerSlotCtrl.text = data['rate_per_slot']?.toString() ?? '';
     _ratePerDayCtrl.text = data['rate_per_day']?.toString() ?? '';
     _radiusCtrl.text = (data['travel_radius_km']?.toString()) ?? '10';
-    _cityCtrl.text = (data['base_city'] as String?) ?? '';
     _notesCtrl.text = (data['notes'] as String?) ?? '';
     _baseLat = (data['base_lat'] as num?)?.toDouble();
     _baseLng = (data['base_lng'] as num?)?.toDouble();
+    _baseLocality = (data['base_locality'] as String?) ?? '';
+    _baseCity = (data['base_city'] as String?) ?? '';
+    _baseState = (data['base_state'] as String?) ?? '';
+  }
+
+  String get _resolvedAddress {
+    final parts = <String>[];
+    if (_baseLocality.isNotEmpty) parts.add(_baseLocality);
+    if (_baseCity.isNotEmpty && _baseCity != _baseLocality) parts.add(_baseCity);
+    if (_baseState.isNotEmpty) parts.add(_baseState);
+    return parts.join(', ');
   }
 
   Future<void> _useMyLocation() async {
@@ -69,12 +82,35 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
       setState(() {
         _baseLat = pos.latitude;
         _baseLng = pos.longitude;
+        _geocoding = true;
       });
+      await _reverseGeocode(pos.latitude, pos.longitude);
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not read GPS.')),
       );
+    } finally {
+      if (mounted) setState(() => _geocoding = false);
+    }
+  }
+
+  Future<void> _reverseGeocode(double lat, double lng) async {
+    try {
+      final placemarks = await placemarkFromCoordinates(lat, lng);
+      if (placemarks.isEmpty) return;
+      final p = placemarks.first;
+      if (!mounted) return;
+      setState(() {
+        _baseLocality = (p.subLocality?.isNotEmpty ?? false)
+            ? p.subLocality!
+            : (p.locality ?? '');
+        _baseCity = p.locality ?? '';
+        _baseState = p.administrativeArea ?? '';
+      });
+    } catch (_) {
+      // Reverse geocoding can fail on poor network; silent fallback —
+      // the GPS is still saved and the backend will use lat/lng for matching.
     }
   }
 
@@ -90,7 +126,9 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
           ? null
           : double.tryParse(_ratePerDayCtrl.text.trim()),
       'travel_radius_km': int.tryParse(_radiusCtrl.text.trim()) ?? 10,
-      'base_city': _cityCtrl.text.trim(),
+      'base_locality': _baseLocality,
+      'base_city': _baseCity,
+      'base_state': _baseState,
       'notes': _notesCtrl.text.trim(),
       if (_baseLat != null) 'base_lat': _baseLat,
       if (_baseLng != null) 'base_lng': _baseLng,
@@ -117,7 +155,7 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-              'Could not toggle — make sure at least one rate is set.'),
+              'Could not toggle — set at least one professional fee first.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -174,7 +212,7 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
                         Text(
                           isAvailable
                               ? 'Clinics nearby can find and book you.'
-                              : 'Set your rates below, then turn on to start receiving bookings.',
+                              : 'Set your professional fees below, then turn on to start receiving bookings.',
                           style: TextStyle(
                               color: Colors.grey[700], fontSize: 12),
                         ),
@@ -198,9 +236,9 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
             ),
 
             const SizedBox(height: 16),
-            const _SectionTitle('Rates'),
+            const _SectionTitle('Professional fees'),
             const Text(
-              'Set at least one. Rates are display-only — the platform does not handle payment.',
+              'Set at least one. Fees are display-only — the platform does not handle payment.',
               style: TextStyle(fontSize: 12, color: MedUnityColors.textSecondary),
             ),
             const SizedBox(height: 8),
@@ -224,7 +262,7 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
                     keyboardType: TextInputType.number,
                     decoration: const InputDecoration(
                       prefixText: '₹ ',
-                      labelText: 'Rate per slot',
+                      labelText: 'Fee per slot',
                       border: OutlineInputBorder(),
                     ),
                   ),
@@ -237,54 +275,65 @@ class _BeAssociateScreenState extends ConsumerState<BeAssociateScreen> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 prefixText: '₹ ',
-                labelText: 'Rate per day',
+                labelText: 'Fee per day',
                 border: OutlineInputBorder(),
               ),
             ),
 
             const SizedBox(height: 16),
             const _SectionTitle('Where you can travel'),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _cityCtrl,
-                    decoration: const InputDecoration(
-                      labelText: 'Base city',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: TextField(
-                    controller: _radiusCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Radius (km)',
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                ),
-              ],
+            const Text(
+              'Pin your base location with GPS — city and locality are filled automatically.',
+              style: TextStyle(fontSize: 12, color: MedUnityColors.textSecondary),
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _baseLat == null
-                        ? 'No base location pinned yet.'
-                        : 'Pinned at: ${_baseLat!.toStringAsFixed(4)}, ${_baseLng!.toStringAsFixed(4)}',
-                    style: TextStyle(color: Colors.grey[700], fontSize: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey[300]!),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.place_outlined,
+                      color: MedUnityColors.textSecondary, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _geocoding
+                        ? const Text('Resolving address…',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: MedUnityColors.textSecondary))
+                        : Text(
+                            _baseLat == null
+                                ? 'No base location pinned yet.'
+                                : (_resolvedAddress.isEmpty
+                                    ? 'Pinned. (City lookup unavailable — GPS saved.)'
+                                    : _resolvedAddress),
+                            style: TextStyle(
+                                color: _baseLat == null
+                                    ? Colors.grey[600]
+                                    : Colors.grey[800],
+                                fontSize: 13),
+                          ),
                   ),
-                ),
-                TextButton.icon(
-                  onPressed: _useMyLocation,
-                  icon: const Icon(Icons.my_location, size: 18),
-                  label: const Text('Use GPS'),
-                ),
-              ],
+                  TextButton.icon(
+                    onPressed: _geocoding ? null : _useMyLocation,
+                    icon: const Icon(Icons.my_location, size: 18),
+                    label: Text(_baseLat == null ? 'Use GPS' : 'Update'),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _radiusCtrl,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'How far you will travel (km)',
+                border: OutlineInputBorder(),
+              ),
             ),
 
             const SizedBox(height: 16),
